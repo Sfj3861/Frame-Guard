@@ -8,7 +8,7 @@ The first milestone is a small, visible in-game diagnostics shell that confirms 
 
 ## Compatibility
 
-The initial metadata targets Geometry Dash **2.2081 on Android**. Change `mod.json` only after testing against the exact Geometry Dash and Geode versions installed on the target device. Android 64-bit and 32-bit builds are separate.
+The initial metadata targets Geometry Dash **2.2081 on Android**. Change `mod.json` only after testing against the exact Geometry Dash and Geode versions installed on the target device. Android 64-bit (`arm64-v8a`) and 32-bit (`armeabi-v7a`) builds are separate. Native Android builds produce shared libraries (`.so`) for the selected ABI; Windows `.dll` files are not used in the Android package. Do not commit placeholder or mismatched `.so` binaries—the Geode/NDK build must produce them.
 
 ## Build
 
@@ -26,6 +26,6 @@ geode sdk install-binaries -p android32
 geode build -p android32
 ```
 
-The generated `.geode` package is typically placed in `build-android64` or `build-android32`. Install it through Geode's supported mod workflow. This repository scaffold has not yet been compiled or tested on a device.
+The generated `.geode` package is typically placed in `build-android64` or `build-android32`; it packages the mod and its platform-native artifacts. Install it through Geode's supported mod workflow. This repository scaffold has not yet been compiled or tested on a device.
 
 See the [official Geode Android build guide](https://docs.geode-sdk.org/getting-started/create-mod/).
