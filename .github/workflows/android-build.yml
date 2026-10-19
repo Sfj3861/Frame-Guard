@@ -24,7 +24,7 @@ jobs:
         with:
           path: geode-android
           target: Android64
-          sdk: latest
+          sdk: given
           build-config: Release
 
       - name: Upload installable Geode package
