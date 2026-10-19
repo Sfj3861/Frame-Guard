@@ -1,28 +1,25 @@
-# Frame-Guard for Geode (Android)
+# Frame-Guard — Geode for Android
 
-Frame-Guard is a native Geode mod targeting Geometry Dash **2.2081 on Android**.
+Target: Geometry Dash Android 2.2081, Geode SDK 5.11.2, Android 64-bit.
 
-## v0.3.0 — engine-aligned visualizer
+## v0.4.0
 
-- Draws object bounds from Geometry Dash's oriented-box data (OBB2D), instead of treating every object as an axis-aligned rectangle.
-- Uses separate colors for solid/slope objects, hazards, and interactive/special objects.
-- Draws circular hazard bounds when the game provides a radius and triangle outlines for slopes.
-- Draws the player's oriented bounds plus a separate inset rectangle reference.
-- Shows a short history of the player's observed positions; this is a trail, **not a prediction of future movement**.
-- Hitboxes and the trail are independently configurable in Geode settings.
+- **Object bounds:** draws the bounds returned by Geometry Dash's `GameObject::getObjectRect()`, transformed through world coordinates so nested objects align with the overlay. Green outlines mark regular objects; red outlines mark hazards.
+- **Player bounds:** cyan outlines show the player object's engine-provided bounds.
+- **Movement trail:** a short, fading trail of observed player positions. It is not a future trajectory prediction.
+- **In-game menu:** tap **FG** at the upper-left during a level to open controls for hitboxes and trail.
+- **Geode settings:** the same settings remain available in the mod's settings page. In-game buttons write directly to the same Geode settings, so both paths stay synchronized.
+- Visual-only: no changes to physics, collisions, inputs, or completion state.
 
-## Compatibility and integrity
+## Installation
 
-- Target: Geometry Dash Android **2.2081**, Geode SDK **5.11.2**.
-- Android 64-bit builds use native ARM64 `.so` libraries inside a `.geode` package. No Windows `.dll` is required.
-- Visual-only diagnostics: this mod does not change physics, collision results, inputs, deaths, or level completion.
-- The source draws engine-provided OBB points in the level's object-layer coordinate space. It still requires a successful Android build and in-game testing before its rendering can be called device-verified.
+Install the generated `.geode` package with Geode for Android 64-bit. Do not install the old v0.2.2 package over this version without replacing it.
 
-## Build
+## Build from source
 
-From this directory, with the Geode SDK and Android toolchain installed:
+With the Geode SDK and Android toolchain installed:
 
     geode sdk install-binaries -p android64
     geode build -p android64
 
-For 32-bit Android, build separately with `-p android32`.
+The CI workflow builds an Android64 `.geode` package. A successful compile does not replace testing inside the target game/device; UI positioning and visuals should still be checked in-game.
