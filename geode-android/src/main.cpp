@@ -95,10 +95,6 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
         if (m_fields->overlay) m_fields->overlay->refresh(this);
     }
 
-    void onQuit() {
-        m_fields->overlay = nullptr;
-        PlayLayer::onQuit();
-    }
 };
 
 $on_mod(Loaded) {
