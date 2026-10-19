@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.3.0",
+  "version": "v0.4.0",
   "developer": "Sfj3861",
-  "description": "Android hitbox visualizer using Geometry Dash oriented bounds, hazard circles, and observed player trail.",
+  "description": "Frame-Guard for Android: engine object bounds, player bounds, observed movement trail, and an in-game toggle menu.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
