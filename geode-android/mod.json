@@ -1,23 +1,25 @@
 {
   "geode": "5.11.2",
-  "gd": { "android": "2.2081" },
+  "gd": {
+    "android": "2.2081"
+  },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.2.0",
+  "version": "v0.2.1",
   "developer": "Sfj3861",
   "description": "Android debug overlay: object bounds and observed player trajectory trail.",
-  "settings": [
-    {
-      "name": "show-hitboxes",
+  "settings": {
+    "show-hitboxes": {
+      "name": "Show hitboxes",
       "type": "bool",
       "default": true,
       "description": "Show debug rectangles for level objects and player bounds."
     },
-    {
-      "name": "show-trajectory",
+    "show-trajectory": {
+      "name": "Show trajectory",
       "type": "bool",
       "default": true,
       "description": "Show a trail of recent observed player positions."
     }
-  ]
+  }
 }
