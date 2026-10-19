@@ -40,6 +40,7 @@ namespace {
             m_draw->clear();
 
             const bool showHitboxes = Mod::get()->getSettingValue<bool>("show-hitboxes");
+            const bool showPlayerBounds = Mod::get()->getSettingValue<bool>("show-player-bounds");
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
 
             // Geometry Dash supplies these object bounds. Convert through world space
@@ -81,7 +82,7 @@ namespace {
                 m_trail.clear();
             }
 
-            if (showHitboxes) {
+            if (showPlayerBounds) {
                 if (layer->m_player1) drawPlayerBounds(layer->m_player1);
                 if (layer->m_player2) drawPlayerBounds(layer->m_player2);
             }
@@ -136,18 +137,34 @@ namespace {
 
             m_openButton = makeItem("FG", menu_selector(FrameGuardMenu::onToggleMenu));
             m_hitboxButton = makeItem("", menu_selector(FrameGuardMenu::onToggleHitboxes));
+            m_playerButton = makeItem("", menu_selector(FrameGuardMenu::onTogglePlayerBounds));
             m_trailButton = makeItem("", menu_selector(FrameGuardMenu::onToggleTrail));
-            if (!m_openButton || !m_hitboxButton || !m_trailButton) return false;
+            m_fpsButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFPS));
+            if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton || !m_fpsButton) return false;
 
             m_openButton->setPosition(ccp(42.f, size.height - 34.f));
-            m_hitboxButton->setPosition(ccp(91.f, size.height - 66.f));
-            m_trailButton->setPosition(ccp(91.f, size.height - 94.f));
+            m_hitboxButton->setPosition(ccp(91.f, size.height - 64.f));
+            m_playerButton->setPosition(ccp(91.f, size.height - 88.f));
+            m_trailButton->setPosition(ccp(91.f, size.height - 112.f));
+            m_fpsButton->setPosition(ccp(91.f, size.height - 136.f));
             m_menu->addChild(m_openButton);
             m_menu->addChild(m_hitboxButton);
+            m_menu->addChild(m_playerButton);
             m_menu->addChild(m_trailButton);
+            m_menu->addChild(m_fpsButton);
 
             m_hitboxButton->setVisible(false);
+            m_playerButton->setVisible(false);
             m_trailButton->setVisible(false);
+            m_fpsButton->setVisible(false);
+
+            m_fpsLabel = cocos2d::CCLabelBMFont::create("FPS: --", "bigFont.fnt");
+            if (m_fpsLabel) {
+                m_fpsLabel->setScale(0.42f);
+                m_fpsLabel->setPosition(ccp(size.width / 2.f, size.height - 20.f));
+                m_fpsLabel->setVisible(Mod::get()->getSettingValue<bool>("show-fps"));
+                this->addChild(m_fpsLabel, 2);
+            }
             syncLabels();
             this->setID("frame-guard-in-game-menu");
             return true;
@@ -156,12 +173,36 @@ namespace {
         void syncLabels() {
             if (m_hitboxButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_hitboxButton->getLabel())
-                    ->setString(toggleText("Hitboxes",
+                    ->setString(toggleText("Objects",
                         Mod::get()->getSettingValue<bool>("show-hitboxes")).c_str());
+            if (m_playerButton)
+                static_cast<cocos2d::CCLabelBMFont*>(m_playerButton->getLabel())
+                    ->setString(toggleText("Player",
+                        Mod::get()->getSettingValue<bool>("show-player-bounds")).c_str());
             if (m_trailButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_trailButton->getLabel())
                     ->setString(toggleText("Trail",
                         Mod::get()->getSettingValue<bool>("show-trajectory")).c_str());
+            if (m_fpsButton)
+                static_cast<cocos2d::CCLabelBMFont*>(m_fpsButton->getLabel())
+                    ->setString(toggleText("FPS",
+                        Mod::get()->getSettingValue<bool>("show-fps")).c_str());
+            if (m_fpsLabel)
+                m_fpsLabel->setVisible(Mod::get()->getSettingValue<bool>("show-fps"));
+        }
+
+        void updateFPS(float dt) {
+            if (!m_fpsLabel || !Mod::get()->getSettingValue<bool>("show-fps")) return;
+            if (dt <= 0.f) return;
+            m_elapsed += dt;
+            ++m_frames;
+            if (m_elapsed >= 0.5f) {
+                const auto fps = static_cast<int>(static_cast<float>(m_frames) / m_elapsed + 0.5f);
+                auto text = fmt::format("FPS: {}", fps);
+                m_fpsLabel->setString(text.c_str());
+                m_elapsed = 0.f;
+                m_frames = 0;
+            }
         }
 
     private:
@@ -175,7 +216,9 @@ namespace {
         void onToggleMenu(cocos2d::CCObject*) {
             m_open = !m_open;
             m_hitboxButton->setVisible(m_open);
+            m_playerButton->setVisible(m_open);
             m_trailButton->setVisible(m_open);
+            m_fpsButton->setVisible(m_open);
             syncLabels();
         }
 
@@ -185,16 +228,33 @@ namespace {
             syncLabels();
         }
 
+        void onTogglePlayerBounds(cocos2d::CCObject*) {
+            const bool next = !Mod::get()->getSettingValue<bool>("show-player-bounds");
+            Mod::get()->setSettingValue<bool>("show-player-bounds", next);
+            syncLabels();
+        }
+
         void onToggleTrail(cocos2d::CCObject*) {
             const bool next = !Mod::get()->getSettingValue<bool>("show-trajectory");
             Mod::get()->setSettingValue<bool>("show-trajectory", next);
             syncLabels();
         }
 
+        void onToggleFPS(cocos2d::CCObject*) {
+            const bool next = !Mod::get()->getSettingValue<bool>("show-fps");
+            Mod::get()->setSettingValue<bool>("show-fps", next);
+            syncLabels();
+        }
+
         cocos2d::CCMenu* m_menu = nullptr;
         cocos2d::CCMenuItemLabel* m_openButton = nullptr;
         cocos2d::CCMenuItemLabel* m_hitboxButton = nullptr;
+        cocos2d::CCMenuItemLabel* m_playerButton = nullptr;
         cocos2d::CCMenuItemLabel* m_trailButton = nullptr;
+        cocos2d::CCMenuItemLabel* m_fpsButton = nullptr;
+        cocos2d::CCLabelBMFont* m_fpsLabel = nullptr;
+        float m_elapsed = 0.f;
+        unsigned int m_frames = 0;
         bool m_open = false;
     };
 }
@@ -218,7 +278,10 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
             m_fields->menu = FrameGuardMenu::create();
             if (m_fields->menu) m_uiLayer->addChild(m_fields->menu, kOverlayZ);
         }
-        if (m_fields->menu) m_fields->menu->syncLabels();
+        if (m_fields->menu) {
+            m_fields->menu->syncLabels();
+            m_fields->menu->updateFPS(dt);
+        }
     }
 
     void resetLevel() {
