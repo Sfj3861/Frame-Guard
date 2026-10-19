@@ -1,38 +1,28 @@
 # Frame-Guard for Geode (Android)
 
-Frame-Guard is an Android-only Geode prototype targeting Geometry Dash **2.2081**.
+Frame-Guard is a native Geode mod targeting Geometry Dash **2.2081 on Android**.
 
-## Prototype v0.2.0
+## v0.3.0 — engine-aligned visualizer
 
-- **Hitboxes ON by default:** draws engine-provided rectangles for objects in the PlayLayer object array, plus separate outlines for player 1 and player 2.
-- **Trajectory ON by default:** draws a short trail of recent player positions.
-- Both features can be toggled in the mod settings.
-- The overlay is visual-only. It does not modify physics, collision, inputs, deaths, level completion, or verification state.
+- Draws object bounds from Geometry Dash's oriented-box data (OBB2D), instead of treating every object as an axis-aligned rectangle.
+- Uses separate colors for solid/slope objects, hazards, and interactive/special objects.
+- Draws circular hazard bounds when the game provides a radius and triangle outlines for slopes.
+- Draws the player's oriented bounds plus a separate inset rectangle reference.
+- Shows a short history of the player's observed positions; this is a trail, **not a prediction of future movement**.
+- Hitboxes and the trail are independently configurable in Geode settings.
 
-### Important accuracy note
+## Compatibility and integrity
 
-The trajectory in this first prototype is the **observed recent path**, not a prediction of future movement. Object rectangles are debug bounds supplied by the game engine; some special collision behavior may not be represented by a simple rectangle. This implementation still needs a real Geode/NDK build and device testing. API names and rendering behavior must be confirmed against the exact Geode SDK for GD 2.2081 before calling it a verified build.
-
-## Compatibility and native builds
-
-The metadata targets Geometry Dash 2.2081 on Android. Android 64-bit (arm64-v8a) and 32-bit (armeabi-v7a) builds are separate. Android native libraries use .so; Windows .dll files are not used. Do not add placeholder binaries: let the Geode/NDK build generate the correct ABI artifacts.
+- Target: Geometry Dash Android **2.2081**, Geode SDK **5.11.2**.
+- Android 64-bit builds use native ARM64 `.so` libraries inside a `.geode` package. No Windows `.dll` is required.
+- Visual-only diagnostics: this mod does not change physics, collision results, inputs, deaths, or level completion.
+- The source draws engine-provided OBB points in the level's object-layer coordinate space. It still requires a successful Android build and in-game testing before its rendering can be called device-verified.
 
 ## Build
 
-Install the Geode SDK and Android toolchain, then run from this directory:
+From this directory, with the Geode SDK and Android toolchain installed:
 
-```sh
-geode sdk install-binaries -p android64
-geode build -p android64
-```
+    geode sdk install-binaries -p android64
+    geode build -p android64
 
-For 32-bit Android:
-
-```sh
-geode sdk install-binaries -p android32
-geode build -p android32
-```
-
-The generated .geode package is typically produced in the corresponding Android build directory. This repository change has **not** yet been compiled or tested on a device.
-
-See the [official Geode mod guide](https://docs.geode-sdk.org/getting-started/create-mod/).
+For 32-bit Android, build separately with `-p android32`.
