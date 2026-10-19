@@ -1,0 +1,36 @@
+name: Build Frame-Guard Android prototype
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "geode-android/**"
+      - ".github/workflows/android-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  android64:
+    name: Build Android 64-bit (.geode)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build with the official Geode action
+        id: build
+        uses: geode-sdk/build-geode-mod@main
+        with:
+          path: geode-android
+          target: Android64
+          sdk: latest
+          build-config: Release
+
+      - name: Upload installable Geode package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Frame-Guard-Android64
+          path: ${{ steps.build.outputs.build-output }}/*.geode
+          if-no-files-found: error
+          retention-days: 14
