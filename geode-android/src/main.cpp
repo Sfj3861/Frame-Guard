@@ -1,6 +1,7 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 #include <array>
+#include <cmath>
 #include <deque>
 
 using namespace geode::prelude;
