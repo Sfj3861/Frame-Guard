@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.4.0",
+  "version": "v0.5.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard for Android: engine object bounds, player bounds, observed movement trail, and an in-game toggle menu.",
+  "description": "Frame-Guard Android overlay with object and player bounds, observed trail, FPS counter, and synced in-game/settings controls.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
@@ -20,6 +20,18 @@
       "type": "bool",
       "default": true,
       "description": "Show a short, fading trail of recent player positions."
+    },
+    "show-player-bounds": {
+      "name": "Show player bounds",
+      "type": "bool",
+      "default": true,
+      "description": "Show Geometry Dash's object-rect bounds for player 1 and player 2."
+    },
+    "show-fps": {
+      "name": "Show FPS counter",
+      "type": "bool",
+      "default": false,
+      "description": "Show a lightweight FPS estimate based on PlayLayer update delta time."
     }
   }
 }
