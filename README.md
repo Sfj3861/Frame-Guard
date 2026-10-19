@@ -16,6 +16,10 @@
 
 Frame-Guard is a timing-analysis sandbox, not a clone of a private cheat. It does not inject code into a game, alter collision outcomes, suppress deaths, or conceal assisted play. Any future game integration must be transparent and restricted to permitted diagnostic/practice use.
 
+## Android / Geode
+
+An Android-only Geode mod scaffold lives in [`geode-android/`](geode-android/README.md). It is a separate native mod target, not an APK and not yet a tested release. It currently logs when loaded; it does not intercept gameplay or alter outcomes. Follow the Geode CLI/Android NDK instructions in that directory to build for `android64` or `android32`. The metadata currently targets Geometry Dash 2.2081 on Android and must be checked against the exact installed Geode version before building.
+
 ## Build
 
 Requires a C++17 compiler and CMake 3.16 or newer.
