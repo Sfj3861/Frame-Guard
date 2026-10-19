@@ -1,11 +1,23 @@
 {
   "geode": "$GEODE_VERSION",
-  "gd": {
-    "android": "2.2081"
-  },
+  "gd": { "android": "2.2081" },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.1.0",
+  "version": "v0.2.0",
   "developer": "Sfj3861",
-  "description": "Visible frame-timing diagnostics and synthetic input analysis for Android."
+  "description": "Android debug overlay: object bounds and observed player trajectory trail.",
+  "settings": [
+    {
+      "name": "show-hitboxes",
+      "type": "bool",
+      "default": true,
+      "description": "Show debug rectangles for level objects and player bounds."
+    },
+    {
+      "name": "show-trajectory",
+      "type": "bool",
+      "default": true,
+      "description": "Show a trail of recent observed player positions."
+    }
+  ]
 }
