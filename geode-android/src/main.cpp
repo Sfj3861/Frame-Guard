@@ -6,9 +6,9 @@ using namespace geode::prelude;
 
 namespace {
     constexpr int kOverlayZ = 9999;
-    constexpr std::size_t kTrailLimit = 90;
+    // A short trail reads as recent movement rather than a long neon ribbon.
+    constexpr std::size_t kTrailLimit = 32;
 
-    // Visual diagnostics only: no collision, physics, input, or death changes.
     class FrameGuardOverlay final : public cocos2d::CCNode {
     public:
         static FrameGuardOverlay* create() {
@@ -37,27 +37,37 @@ namespace {
             const bool showHitboxes = Mod::get()->getSettingValue<bool>("show-hitboxes");
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
 
+            // getObjectRect is expressed in the object's parent coordinate space.
+            // Convert through world space so nested object layers line up with this overlay.
             if (showHitboxes && layer->m_objects) {
                 for (unsigned int i = 0; i < layer->m_objects->count(); ++i) {
                     auto* object = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
-                    if (!object || !object->isVisible()) continue;
+                    if (!object || !object->isVisible() || !object->getParent()) continue;
+
                     const auto rect = object->getObjectRect();
-                    const auto end = ccp(rect.origin.x + rect.size.width,
-                                         rect.origin.y + rect.size.height);
-                    m_draw->drawRect(rect.origin, end, cocos2d::ccc4f(1.f, 0.f, 0.f, 0.06f),
-                                     1.f, cocos2d::ccc4f(1.f, 0.2f, 0.2f, 0.85f));
+                    if (rect.size.width <= 0.f || rect.size.height <= 0.f) continue;
+                    const auto p1 = toOverlay(object, rect.origin);
+                    const auto p2 = toOverlay(object, ccp(rect.origin.x + rect.size.width,
+                                                          rect.origin.y + rect.size.height));
+                    // Outline only: no filled rectangles obscuring the actual level art.
+                    m_draw->drawRect(p1, p2, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
+                                     0.8f, cocos2d::ccc4f(1.f, 0.25f, 0.25f, 0.72f));
                 }
             }
 
             if (showTrajectory && layer->m_player1) {
-                m_trail.push_back(layer->m_player1->getPosition());
+                auto* player = layer->m_player1;
+                const auto worldPos = player->getParent()
+                    ? player->getParent()->convertToWorldSpace(player->getPosition())
+                    : player->convertToWorldSpace(cocos2d::CCPointZero);
+                m_trail.push_back(this->convertToNodeSpace(worldPos));
                 while (m_trail.size() > kTrailLimit) m_trail.pop_front();
-                // This is a trail of observed positions, not a future prediction.
+
                 for (std::size_t i = 1; i < m_trail.size(); ++i) {
-                    const float alpha = static_cast<float>(i) /
-                                        static_cast<float>(m_trail.size());
-                    m_draw->drawSegment(m_trail[i - 1], m_trail[i], 1.5f,
-                                        cocos2d::ccc4f(0.15f, 0.9f, 1.f, alpha));
+                    const float age = static_cast<float>(i) /
+                                      static_cast<float>(m_trail.size() - 1);
+                    m_draw->drawSegment(m_trail[i - 1], m_trail[i], 1.0f,
+                                        cocos2d::ccc4f(0.15f, 0.78f, 0.95f, 0.08f + 0.52f * age));
                 }
             } else {
                 m_trail.clear();
@@ -68,12 +78,21 @@ namespace {
         }
 
     private:
+        cocos2d::CCPoint toOverlay(cocos2d::CCNode* object, cocos2d::CCPoint point) {
+            auto* parent = object->getParent();
+            if (!parent) return point;
+            return this->convertToNodeSpace(parent->convertToWorldSpace(point));
+        }
+
         void drawPlayerBounds(PlayerObject* player) {
+            if (!player || !player->getParent()) return;
             const auto rect = player->getObjectRect();
-            const auto end = ccp(rect.origin.x + rect.size.width,
-                                 rect.origin.y + rect.size.height);
-            m_draw->drawRect(rect.origin, end, cocos2d::ccc4f(0.f, 0.8f, 1.f, 0.08f),
-                             1.5f, cocos2d::ccc4f(0.f, 0.9f, 1.f, 1.f));
+            if (rect.size.width <= 0.f || rect.size.height <= 0.f) return;
+            const auto p1 = toOverlay(player, rect.origin);
+            const auto p2 = toOverlay(player, ccp(rect.origin.x + rect.size.width,
+                                                  rect.origin.y + rect.size.height));
+            m_draw->drawRect(p1, p2, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
+                             1.2f, cocos2d::ccc4f(0.1f, 0.85f, 1.f, 0.95f));
         }
 
         cocos2d::CCDrawNode* m_draw = nullptr;
@@ -94,9 +113,8 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
         }
         if (m_fields->overlay) m_fields->overlay->refresh(this);
     }
-
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard prototype loaded. Hitboxes and observed trajectory trail default to ON.");
+    log::info("Frame-Guard loaded: lightweight outline diagnostics enabled.");
 }
