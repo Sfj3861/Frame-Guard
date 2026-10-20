@@ -819,20 +819,27 @@ namespace {
                 }
             );
 
+            // Use a compact two-column layout so the complete menu remains reachable
+            // on the typical 480x320 landscape design size used by Geometry Dash.
+            const float leftX = std::clamp(size.width * 0.27f, 100.f, 136.f);
+            const float rightX = std::clamp(size.width * 0.69f, 236.f, 344.f);
+            const float sliderX = std::clamp(size.width * 0.43f, 180.f, 220.f);
+            const float rowTop = size.height - 64.f;
+            constexpr float rowStep = 24.f;
             m_openButton->setPosition(ccp(42.f, size.height - 34.f));
-            m_hitboxButton->setPosition(ccp(91.f, size.height - 64.f));
-            m_playerButton->setPosition(ccp(91.f, size.height - 88.f));
-            m_trailButton->setPosition(ccp(91.f, size.height - 112.f));
-            m_fpsButton->setPosition(ccp(91.f, size.height - 136.f));
-            m_guardButton->setPosition(ccp(91.f, size.height - 160.f));
-            m_schedulerButton->setPosition(ccp(91.f, size.height - 184.f));
-            m_exportButton->setPosition(ccp(91.f, size.height - 208.f));
-            m_infoButton->setPosition(ccp(91.f, size.height - 232.f));
-            m_hudButton->setPosition(ccp(91.f, size.height - 256.f));
-            m_languageButton->setPosition(ccp(91.f, size.height - 280.f));
-            m_opacitySlider->setPosition(ccp(112.f, size.height - 314.f));
-            m_marginSlider->setPosition(ccp(112.f, size.height - 350.f));
-            m_delaySlider->setPosition(ccp(112.f, size.height - 386.f));
+            m_hitboxButton->setPosition(ccp(leftX, rowTop));
+            m_playerButton->setPosition(ccp(rightX, rowTop));
+            m_trailButton->setPosition(ccp(leftX, rowTop - rowStep));
+            m_fpsButton->setPosition(ccp(rightX, rowTop - rowStep));
+            m_guardButton->setPosition(ccp(leftX, rowTop - rowStep * 2.f));
+            m_schedulerButton->setPosition(ccp(rightX, rowTop - rowStep * 2.f));
+            m_exportButton->setPosition(ccp(leftX, rowTop - rowStep * 3.f));
+            m_infoButton->setPosition(ccp(rightX, rowTop - rowStep * 3.f));
+            m_hudButton->setPosition(ccp(leftX, rowTop - rowStep * 4.f));
+            m_languageButton->setPosition(ccp(rightX, rowTop - rowStep * 4.f));
+            m_opacitySlider->setPosition(ccp(sliderX, size.height - 200.f));
+            m_marginSlider->setPosition(ccp(sliderX, size.height - 236.f));
+            m_delaySlider->setPosition(ccp(sliderX, size.height - 272.f));
             m_menu->addChild(m_openButton);
             m_menu->addChild(m_hitboxButton);
             m_menu->addChild(m_playerButton);
