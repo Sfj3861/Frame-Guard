@@ -225,7 +225,12 @@ namespace {
             return true;
         }
 
-        void resetTrail() {}
+        void resetTrail() {
+            // Level reset can replace every GameObject while keeping the same count.
+            // Force a fresh pointer cache before drawing the next frame.
+            m_collisionObjects.clear();
+            m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
+        }
 
         void refresh(PlayLayer* layer) {
             if (!layer || !m_draw) return;
@@ -1015,10 +1020,12 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
         processScheduledInputs(this, dt);
         if (!m_fields->overlay) {
             m_fields->overlay = FrameGuardOverlay::create();
-            // Match QOLMod's layer placement: render in the game-layer coordinate
-            // space, immediately below the UI, so geometry tracks level scrolling.
-            if (m_fields->overlay)
-                this->insertBefore(m_fields->overlay, m_uiLayer);
+            // GameObject positions and collision rectangles are expressed in the
+            // object-layer coordinate space. Parenting the overlay to PlayLayer itself
+            // makes it drift relative to scrolling/zoom transforms on some devices.
+            // Keep drawing in the same transformed layer as the level objects.
+            if (m_fields->overlay && m_objectLayer)
+                m_objectLayer->addChild(m_fields->overlay, 9999);
         }
         if (m_fields->overlay) m_fields->overlay->refresh(this);
         if (!m_fields->menu && m_uiLayer) {
@@ -1033,9 +1040,10 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
     }
 
     void resetLevel() {
+        // Drop deferred callbacks before the game resets player/level state.
+        g_pendingInputs.clear();
         if (m_fields->overlay) m_fields->overlay->resetTrail();
         FrameGuardTelemetry::reset();
-        g_pendingInputs.clear();
         g_activePlayLayer = this;
         PlayLayer::resetLevel();
     }
