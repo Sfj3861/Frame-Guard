@@ -17,6 +17,14 @@ namespace {
     }
 
     namespace FrameGuardTelemetry {
+        struct Event {
+            std::uint64_t frame;
+            long long micros;
+            int button;
+            bool pressed;
+            long long deltaMicros;
+        };
+        static std::deque<Event> events;
         static std::uint64_t frame = 0;
         static std::uint64_t inputs = 0;
         static int lastButton = -1;
@@ -37,12 +45,15 @@ namespace {
             lastPressed = pressed;
             lastFrame = frame;
             ++inputs;
+            events.push_back(Event{frame, now, lastButton, pressed, deltaMicros});
+            while (events.size() > 16) events.pop_front();
         }
         static void reset() {
             frame = inputs = lastFrame = 0;
             lastButton = -1;
             lastMicros = -1;
             deltaMicros = 0;
+            events.clear();
             started = std::chrono::steady_clock::now();
         }
         static std::string summary() {
