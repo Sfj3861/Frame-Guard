@@ -4,6 +4,7 @@
 #include <Geode/loader/SettingV3.hpp>
 #include <deque>
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <fstream>
@@ -13,7 +14,7 @@ using namespace geode::prelude;
 
 namespace {
     constexpr int kOverlayZ = 9999;
-    constexpr std::size_t kTrailLimit = 24;
+    constexpr std::size_t kTrailLimit = 48;
 
     std::string toggleText(char const* name, bool value) {
         return fmt::format("{}: {}", name, value ? "ON" : "OFF");
@@ -104,7 +105,7 @@ namespace {
             return true;
         }
 
-        void resetTrail() { m_trail.clear(); }
+        void resetTrail() { m_trail1.clear(); m_trail2.clear(); }
 
         void refresh(PlayLayer* layer) {
             if (!layer || !m_draw) return;
@@ -117,33 +118,31 @@ namespace {
             if (showHitboxes && layer->m_objects) {
                 for (unsigned int i = 0; i < layer->m_objects->count(); ++i) {
                     auto* object = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
-                    // A renderable sprite is not enough: require collision geometry
-                    // actually prepared by the game before drawing a hitbox.
-                    // This guard intentionally fails closed for decorative-only objects.
-                    // Keep this decision separate from drawing so disabled geometry cannot
-                    // accidentally inherit a visual sprite's rectangular bounds.
-                    if (object && isCollisionObject(object) &&
-                        (object->m_orientedBox || object->m_objectRadius > 0.f))
+                    if (!object || !isCollisionObject(object)) continue;
+                    const auto rect = object->getObjectRect();
+                    const bool hasRect = rect.size.width > 0.f && rect.size.height > 0.f;
+                    if (object->m_objectRadius > 0.f || hasRect)
                         drawObjectGeometry(object);
                 }
             }
 
+            // Trajectory mode keeps a fading history of the player's collision
+            // boxes, not just a line through sprite centers. This is intentionally
+            // captured from live game geometry; it does not alter player physics.
             if (showTrajectory && layer->m_player1) {
-                auto* player = layer->m_player1;
-                const auto pos = player->getPosition();
-                m_trail.push_back(pos);
-                while (m_trail.size() > kTrailLimit) m_trail.pop_front();
-                for (std::size_t i = 1; i < m_trail.size(); ++i) {
-                    const float fade = static_cast<float>(i) /
-                        static_cast<float>(std::max<std::size_t>(1, m_trail.size() - 1));
-                    m_draw->drawSegment(m_trail[i - 1], m_trail[i], 1.0f,
-                        cocos2d::ccc4f(0.10f, 0.78f, 1.0f, 0.08f + 0.50f * fade));
-                }
+                captureTrail(layer->m_player1, m_trail1);
+                if (layer->m_player2 && layer->m_player2->isRunning())
+                    captureTrail(layer->m_player2, m_trail2);
+                else
+                    m_trail2.clear();
+                drawTrail(m_trail1, cocos2d::ccc4f(0.10f, 0.82f, 1.0f, 1.0f));
+                drawTrail(m_trail2, cocos2d::ccc4f(1.0f, 0.45f, 0.10f, 1.0f));
             } else {
-                m_trail.clear();
+                m_trail1.clear();
+                m_trail2.clear();
             }
 
-            if (showPlayerBounds) {
+            if (showPlayerBounds || showHitboxes) {
                 if (layer->m_player1) drawPlayerGeometry(layer->m_player1);
                 if (layer->m_player2 && layer->m_player2->isRunning())
                     drawPlayerGeometry(layer->m_player2);
@@ -211,6 +210,59 @@ namespace {
             }))
                 return cocos2d::ccc4f(0.12f, 1.0f, 0.25f, 0.96f);
             return cocos2d::ccc4f(1.0f, 0.85f, 0.15f, 0.9f);
+        }
+
+        struct PlayerSnapshot {
+            std::array<cocos2d::CCPoint, 4> body;
+            std::array<cocos2d::CCPoint, 4> mini;
+        };
+
+        static std::array<cocos2d::CCPoint, 4> rectCorners(cocos2d::CCRect const& rect) {
+            return {{
+                ccp(rect.getMinX(), rect.getMinY()),
+                ccp(rect.getMaxX(), rect.getMinY()),
+                ccp(rect.getMaxX(), rect.getMaxY()),
+                ccp(rect.getMinX(), rect.getMaxY())
+            }};
+        }
+
+        static PlayerSnapshot snapshotPlayer(PlayerObject* player) {
+            PlayerSnapshot snapshot{};
+            auto bodyRect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
+            snapshot.body = rectCorners(bodyRect);
+            if (player->m_orientedBox) {
+                for (int i = 0; i < 4; ++i)
+                    snapshot.body[i] = player->m_orientedBox->m_corners[i];
+            }
+            snapshot.mini = rectCorners(player->getObjectRect(0.3f, 0.3f));
+            return snapshot;
+        }
+
+        static void captureTrail(PlayerObject* player, std::deque<PlayerSnapshot>& trail) {
+            if (!player || player->m_isDead) {
+                trail.clear();
+                return;
+            }
+            trail.push_back(snapshotPlayer(player));
+            while (trail.size() > kTrailLimit) trail.pop_front();
+        }
+
+        void drawTrail(std::deque<PlayerSnapshot> const& trail, cocos2d::ccColor4F base) {
+            if (trail.empty()) return;
+            for (std::size_t i = 0; i < trail.size(); ++i) {
+                const float fade = static_cast<float>(i + 1) /
+                    static_cast<float>(trail.size());
+                auto bodyColour = base;
+                bodyColour.a = 0.04f + 0.26f * fade;
+                auto miniColour = cocos2d::ccc4f(0.22f, 1.0f, 0.48f, 0.03f + 0.18f * fade);
+                const auto& state = trail[i];
+                m_draw->drawPolygon(const_cast<cocos2d::CCPoint*>(state.body.data()), 4,
+                    cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f), 0.65f, bodyColour,
+                    cocos2d::BorderAlignment::Inside);
+                m_draw->drawPolygon(const_cast<cocos2d::CCPoint*>(state.mini.data()), 4,
+                    cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f), 0.55f, miniColour,
+                    cocos2d::BorderAlignment::Inside);
+            }
         }
 
         void drawObjectGeometry(GameObject* obj) {
@@ -307,7 +359,8 @@ namespace {
         }
 
         cocos2d::CCDrawNode* m_draw = nullptr;
-        std::deque<cocos2d::CCPoint> m_trail;
+        std::deque<PlayerSnapshot> m_trail1;
+        std::deque<PlayerSnapshot> m_trail2;
     };
 
     class FrameGuardMenu final : public cocos2d::CCNode {
@@ -428,7 +481,7 @@ namespace {
                     toggleText("Player", Mod::get()->getSettingValue<bool>("show-player-bounds")).c_str());
             if (m_trailButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_trailButton->getLabel())->setString(
-                    toggleText("Trail", Mod::get()->getSettingValue<bool>("show-trajectory")).c_str());
+                    toggleText("Trajectory", Mod::get()->getSettingValue<bool>("show-trajectory")).c_str());
             if (m_fpsButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_fpsButton->getLabel())->setString(
                     toggleText("FPS", Mod::get()->getSettingValue<bool>("show-fps")).c_str());
