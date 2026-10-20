@@ -1,6 +1,8 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 #include <deque>
+#include <algorithm>
+#include <vector>
 
 using namespace geode::prelude;
 
@@ -12,6 +14,9 @@ namespace {
         return fmt::format("{}: {}", name, value ? "ON" : "OFF");
     }
 
+    // Frame-Guard draws collision geometry independently, using Geometry Dash's
+    // collision rectangles, circles, slope direction and player oriented box.
+    // It deliberately excludes decoration and non-collidable visual objects.
     class FrameGuardOverlay final : public cocos2d::CCNode {
     public:
         static FrameGuardOverlay* create() {
@@ -29,6 +34,7 @@ namespace {
             m_draw = cocos2d::CCDrawNode::create();
             if (!m_draw) return false;
             this->addChild(m_draw);
+            this->setPosition(cocos2d::CCPointZero);
             this->setID("frame-guard-overlay");
             return true;
         }
@@ -43,75 +49,196 @@ namespace {
             const bool showPlayerBounds = Mod::get()->getSettingValue<bool>("show-player-bounds");
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
 
-            // Geometry Dash supplies these object bounds. Convert through world space
-            // so nested level objects line up with the overlay's coordinate system.
             if (showHitboxes && layer->m_objects) {
                 for (unsigned int i = 0; i < layer->m_objects->count(); ++i) {
                     auto* object = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
-                    if (!object || !object->isVisible() || !object->getParent()) continue;
-
-                    const auto rect = object->getObjectRect();
-                    if (rect.size.width <= 0.f || rect.size.height <= 0.f) continue;
-
-                    const auto p1 = toOverlay(object, rect.origin);
-                    const auto p2 = toOverlay(object, ccp(rect.origin.x + rect.size.width,
-                                                          rect.origin.y + rect.size.height));
-                    const auto color = object->m_objectType == GameObjectType::Hazard
-                        ? cocos2d::ccc4f(1.f, 0.20f, 0.20f, 0.88f)
-                        : cocos2d::ccc4f(0.30f, 1.f, 0.40f, 0.72f);
-                    m_draw->drawRect(p1, p2, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
-                                     0.8f, color);
+                    if (object && isCollisionObject(object))
+                        drawObjectGeometry(object);
                 }
             }
 
             if (showTrajectory && layer->m_player1) {
                 auto* player = layer->m_player1;
-                const auto worldPos = player->getParent()
-                    ? player->getParent()->convertToWorldSpace(player->getPosition())
-                    : player->convertToWorldSpace(cocos2d::CCPointZero);
-                m_trail.push_back(this->convertToNodeSpace(worldPos));
+                const auto pos = player->getPosition();
+                m_trail.push_back(pos);
                 while (m_trail.size() > kTrailLimit) m_trail.pop_front();
-
                 for (std::size_t i = 1; i < m_trail.size(); ++i) {
-                    const float age = static_cast<float>(i) /
-                                      static_cast<float>(m_trail.size() - 1);
+                    const float fade = static_cast<float>(i) /
+                        static_cast<float>(std::max<std::size_t>(1, m_trail.size() - 1));
                     m_draw->drawSegment(m_trail[i - 1], m_trail[i], 1.0f,
-                        cocos2d::ccc4f(0.10f, 0.78f, 1.f, 0.08f + 0.50f * age));
+                        cocos2d::ccc4f(0.10f, 0.78f, 1.0f, 0.08f + 0.50f * fade));
                 }
             } else {
                 m_trail.clear();
             }
 
             if (showPlayerBounds) {
-                if (layer->m_player1) drawPlayerBounds(layer->m_player1);
-                if (layer->m_player2) drawPlayerBounds(layer->m_player2);
+                if (layer->m_player1) drawPlayerGeometry(layer->m_player1);
+                if (layer->m_player2 && layer->m_player2->isRunning())
+                    drawPlayerGeometry(layer->m_player2);
             }
         }
 
     private:
-        cocos2d::CCPoint toOverlay(cocos2d::CCNode* object, cocos2d::CCPoint point) {
-            auto* parent = object->getParent();
-            if (!parent) return point;
-            return this->convertToNodeSpace(parent->convertToWorldSpace(point));
+        static bool typeIs(GameObject* obj, std::initializer_list<GameObjectType> types) {
+            return std::find(types.begin(), types.end(), obj->m_objectType) != types.end();
         }
 
-        void drawPlayerBounds(PlayerObject* player) {
-            if (!player || !player->getParent()) return;
-            const auto rect = player->getObjectRect();
+        static bool isCollisionObject(GameObject* obj) {
+            if (!obj || obj->m_isDecoration || obj->m_isDecoration2 || obj->m_unk3ee)
+                return false;
+            if (typeIs(obj, { GameObjectType::EnterEffectObject }))
+                return false;
+            return typeIs(obj, {
+                GameObjectType::Hazard, GameObjectType::AnimatedHazard,
+                GameObjectType::Solid, GameObjectType::Slope,
+                GameObjectType::Breakable, GameObjectType::UserCoin,
+                GameObjectType::Collectible, GameObjectType::SecretCoin,
+                GameObjectType::InverseGravityPortal, GameObjectType::NormalGravityPortal,
+                GameObjectType::ShipPortal, GameObjectType::CubePortal,
+                GameObjectType::YellowJumpPad, GameObjectType::PinkJumpPad,
+                GameObjectType::GravityPad, GameObjectType::YellowJumpRing,
+                GameObjectType::PinkJumpRing, GameObjectType::GravityRing,
+                GameObjectType::InverseMirrorPortal, GameObjectType::NormalMirrorPortal,
+                GameObjectType::BallPortal, GameObjectType::RegularSizePortal,
+                GameObjectType::MiniSizePortal, GameObjectType::UfoPortal,
+                GameObjectType::DualPortal, GameObjectType::SoloPortal,
+                GameObjectType::WavePortal, GameObjectType::RobotPortal,
+                GameObjectType::TeleportPortal, GameObjectType::GreenRing,
+                GameObjectType::DropRing, GameObjectType::SpiderPortal,
+                GameObjectType::RedJumpPad, GameObjectType::RedJumpRing,
+                GameObjectType::CustomRing, GameObjectType::DashRing,
+                GameObjectType::GravityDashRing, GameObjectType::SwingPortal,
+                GameObjectType::GravityTogglePortal, GameObjectType::SpiderOrb,
+                GameObjectType::SpiderPad, GameObjectType::TeleportOrb,
+                GameObjectType::Modifier
+            }) || obj->m_isPassable;
+        }
+
+        static cocos2d::ccColor4F colourFor(GameObject* obj) {
+            if (typeIs(obj, { GameObjectType::Hazard, GameObjectType::AnimatedHazard }) ||
+                (obj->m_objectType == GameObjectType::Slope && obj->m_slopeIsHazard))
+                return cocos2d::ccc4f(1.0f, 0.12f, 0.12f, 0.96f);
+            if (typeIs(obj, { GameObjectType::Solid, GameObjectType::Slope }))
+                return cocos2d::ccc4f(0.20f, 0.42f, 1.0f, 0.96f);
+            if (obj->m_isPassable || typeIs(obj, { GameObjectType::Breakable }))
+                return cocos2d::ccc4f(0.0f, 0.95f, 1.0f, 0.96f);
+            if (typeIs(obj, {
+                GameObjectType::UserCoin, GameObjectType::Collectible, GameObjectType::SecretCoin,
+                GameObjectType::InverseGravityPortal, GameObjectType::NormalGravityPortal,
+                GameObjectType::ShipPortal, GameObjectType::CubePortal, GameObjectType::YellowJumpPad,
+                GameObjectType::PinkJumpPad, GameObjectType::GravityPad, GameObjectType::YellowJumpRing,
+                GameObjectType::PinkJumpRing, GameObjectType::GravityRing, GameObjectType::BallPortal,
+                GameObjectType::RegularSizePortal, GameObjectType::MiniSizePortal, GameObjectType::UfoPortal,
+                GameObjectType::DualPortal, GameObjectType::SoloPortal, GameObjectType::WavePortal,
+                GameObjectType::RobotPortal, GameObjectType::TeleportPortal, GameObjectType::GreenRing,
+                GameObjectType::DropRing, GameObjectType::SpiderPortal, GameObjectType::RedJumpPad,
+                GameObjectType::RedJumpRing, GameObjectType::CustomRing, GameObjectType::DashRing,
+                GameObjectType::GravityDashRing, GameObjectType::SwingPortal, GameObjectType::GravityTogglePortal,
+                GameObjectType::SpiderOrb, GameObjectType::SpiderPad, GameObjectType::TeleportOrb,
+                GameObjectType::Modifier
+            }))
+                return cocos2d::ccc4f(0.12f, 1.0f, 0.25f, 0.96f);
+            return cocos2d::ccc4f(1.0f, 0.85f, 0.15f, 0.9f);
+        }
+
+        void drawObjectGeometry(GameObject* obj) {
+            const auto colour = colourFor(obj);
+            const float width = 0.7f;
+
+            if (obj->m_objectRadius > 0.0f) {
+                const float radius = obj->m_objectRadius *
+                    std::max<float>(obj->m_scaleX, obj->m_scaleY);
+                m_draw->drawCircle(ccp(obj->m_positionX, obj->m_positionY), radius,
+                    cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f), width, colour, 64);
+                return;
+            }
+
+            // Keep the game's collision-rect calculation authoritative. The
+            // returned rectangle is the level-space geometry used by the game.
+            const auto rect = obj->getObjectRect();
             if (rect.size.width <= 0.f || rect.size.height <= 0.f) return;
-            const auto p1 = toOverlay(player, rect.origin);
-            const auto p2 = toOverlay(player, ccp(rect.origin.x + rect.size.width,
-                                                  rect.origin.y + rect.size.height));
-            m_draw->drawRect(p1, p2, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
-                             1.2f, cocos2d::ccc4f(0.10f, 0.85f, 1.f, 0.98f));
+
+            if (obj->m_objectType == GameObjectType::Slope) {
+                cocos2d::CCPoint points[] = {
+                    ccp(rect.getMaxX(), rect.getMinY()),
+                    ccp(rect.getMinX(), rect.getMaxY()),
+                    ccp(rect.getMinX(), rect.getMinY())
+                };
+                switch (obj->m_slopeDirection) {
+                    case 0:
+                    case 7:
+                        points[1] = ccp(rect.getMaxX(), rect.getMaxY());
+                        break;
+                    case 3:
+                    case 6:
+                        points[0] = ccp(rect.getMaxX(), rect.getMaxY());
+                        break;
+                    case 1:
+                    case 5:
+                        points[2] = ccp(rect.getMinX(), rect.getMaxY());
+                        points[1] = ccp(rect.getMaxX(), rect.getMaxY());
+                        points[0] = ccp(rect.getMaxX(), rect.getMinY());
+                        break;
+                    default:
+                        break;
+                }
+                m_draw->drawPolygon(points, 3, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
+                    width, colour, cocos2d::BorderAlignment::Inside);
+                return;
+            }
+
+            cocos2d::CCPoint corners[] = {
+                ccp(rect.getMinX(), rect.getMinY()),
+                ccp(rect.getMaxX(), rect.getMinY()),
+                ccp(rect.getMaxX(), rect.getMaxY()),
+                ccp(rect.getMinX(), rect.getMaxY())
+            };
+            if (obj->m_orientedBox) {
+                for (int i = 0; i < 4; ++i)
+                    corners[i] = obj->m_orientedBox->m_corners[i];
+            }
+            m_draw->drawPolygon(corners, 4, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
+                width, colour, cocos2d::BorderAlignment::Inside);
+        }
+
+        void drawPlayerGeometry(PlayerObject* player) {
+            if (!player) return;
+            const auto normal = cocos2d::ccc4f(1.0f, 0.12f, 0.12f, 0.98f);
+            const auto rotated = cocos2d::ccc4f(0.95f, 0.05f, 0.48f, 0.98f);
+            const auto mini = cocos2d::ccc4f(0.12f, 0.95f, 1.0f, 0.98f);
+            if (player->m_orientedBox) {
+                cocos2d::CCPoint corners[] = {
+                    player->m_orientedBox->m_corners[0], player->m_orientedBox->m_corners[1],
+                    player->m_orientedBox->m_corners[2], player->m_orientedBox->m_corners[3]
+                };
+                m_draw->drawPolygon(corners, 4, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
+                    0.8f, rotated, cocos2d::BorderAlignment::Inside);
+            }
+
+            auto rect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
+            cocos2d::CCPoint body[] = {
+                ccp(rect.getMinX(), rect.getMinY()), ccp(rect.getMaxX(), rect.getMinY()),
+                ccp(rect.getMaxX(), rect.getMaxY()), ccp(rect.getMinX(), rect.getMaxY())
+            };
+            m_draw->drawPolygon(body, 4, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
+                0.8f, normal, cocos2d::BorderAlignment::Inside);
+
+            auto smallRect = player->getObjectRect(0.3f, 0.3f);
+            cocos2d::CCPoint small[] = {
+                ccp(smallRect.getMinX(), smallRect.getMinY()),
+                ccp(smallRect.getMaxX(), smallRect.getMinY()),
+                ccp(smallRect.getMaxX(), smallRect.getMaxY()),
+                ccp(smallRect.getMinX(), smallRect.getMaxY())
+            };
+            m_draw->drawPolygon(small, 4, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
+                0.8f, mini, cocos2d::BorderAlignment::Inside);
         }
 
         cocos2d::CCDrawNode* m_draw = nullptr;
         std::deque<cocos2d::CCPoint> m_trail;
     };
 
-    // Compact in-level menu. It edits the same settings used by Geode's mod
-    // settings page, so both controls remain in sync.
     class FrameGuardMenu final : public cocos2d::CCNode {
     public:
         static FrameGuardMenu* create() {
@@ -126,7 +253,6 @@ namespace {
 
         bool init() override {
             if (!CCNode::init()) return false;
-
             auto* director = cocos2d::CCDirector::sharedDirector();
             const auto size = director->getWinSize();
 
@@ -152,7 +278,6 @@ namespace {
             m_menu->addChild(m_playerButton);
             m_menu->addChild(m_trailButton);
             m_menu->addChild(m_fpsButton);
-
             m_hitboxButton->setVisible(false);
             m_playerButton->setVisible(false);
             m_trailButton->setVisible(false);
@@ -172,28 +297,23 @@ namespace {
 
         void syncLabels() {
             if (m_hitboxButton)
-                static_cast<cocos2d::CCLabelBMFont*>(m_hitboxButton->getLabel())
-                    ->setString(toggleText("Objects",
-                        Mod::get()->getSettingValue<bool>("show-hitboxes")).c_str());
+                static_cast<cocos2d::CCLabelBMFont*>(m_hitboxButton->getLabel())->setString(
+                    toggleText("Hitboxes", Mod::get()->getSettingValue<bool>("show-hitboxes")).c_str());
             if (m_playerButton)
-                static_cast<cocos2d::CCLabelBMFont*>(m_playerButton->getLabel())
-                    ->setString(toggleText("Player",
-                        Mod::get()->getSettingValue<bool>("show-player-bounds")).c_str());
+                static_cast<cocos2d::CCLabelBMFont*>(m_playerButton->getLabel())->setString(
+                    toggleText("Player", Mod::get()->getSettingValue<bool>("show-player-bounds")).c_str());
             if (m_trailButton)
-                static_cast<cocos2d::CCLabelBMFont*>(m_trailButton->getLabel())
-                    ->setString(toggleText("Trail",
-                        Mod::get()->getSettingValue<bool>("show-trajectory")).c_str());
+                static_cast<cocos2d::CCLabelBMFont*>(m_trailButton->getLabel())->setString(
+                    toggleText("Trail", Mod::get()->getSettingValue<bool>("show-trajectory")).c_str());
             if (m_fpsButton)
-                static_cast<cocos2d::CCLabelBMFont*>(m_fpsButton->getLabel())
-                    ->setString(toggleText("FPS",
-                        Mod::get()->getSettingValue<bool>("show-fps")).c_str());
+                static_cast<cocos2d::CCLabelBMFont*>(m_fpsButton->getLabel())->setString(
+                    toggleText("FPS", Mod::get()->getSettingValue<bool>("show-fps")).c_str());
             if (m_fpsLabel)
                 m_fpsLabel->setVisible(Mod::get()->getSettingValue<bool>("show-fps"));
         }
 
         void updateFPS(float dt) {
-            if (!m_fpsLabel || !Mod::get()->getSettingValue<bool>("show-fps")) return;
-            if (dt <= 0.f) return;
+            if (!m_fpsLabel || !Mod::get()->getSettingValue<bool>("show-fps") || dt <= 0.f) return;
             m_elapsed += dt;
             ++m_frames;
             if (m_elapsed >= 0.5f) {
@@ -212,7 +332,6 @@ namespace {
             label->setScale(0.48f);
             return cocos2d::CCMenuItemLabel::create(label, this, callback);
         }
-
         void onToggleMenu(cocos2d::CCObject*) {
             m_open = !m_open;
             m_hitboxButton->setVisible(m_open);
@@ -221,28 +340,24 @@ namespace {
             m_fpsButton->setVisible(m_open);
             syncLabels();
         }
-
         void onToggleHitboxes(cocos2d::CCObject*) {
-            const bool next = !Mod::get()->getSettingValue<bool>("show-hitboxes");
-            Mod::get()->setSettingValue<bool>("show-hitboxes", next);
+            Mod::get()->setSettingValue<bool>("show-hitboxes",
+                !Mod::get()->getSettingValue<bool>("show-hitboxes"));
             syncLabels();
         }
-
         void onTogglePlayerBounds(cocos2d::CCObject*) {
-            const bool next = !Mod::get()->getSettingValue<bool>("show-player-bounds");
-            Mod::get()->setSettingValue<bool>("show-player-bounds", next);
+            Mod::get()->setSettingValue<bool>("show-player-bounds",
+                !Mod::get()->getSettingValue<bool>("show-player-bounds"));
             syncLabels();
         }
-
         void onToggleTrail(cocos2d::CCObject*) {
-            const bool next = !Mod::get()->getSettingValue<bool>("show-trajectory");
-            Mod::get()->setSettingValue<bool>("show-trajectory", next);
+            Mod::get()->setSettingValue<bool>("show-trajectory",
+                !Mod::get()->getSettingValue<bool>("show-trajectory"));
             syncLabels();
         }
-
         void onToggleFPS(cocos2d::CCObject*) {
-            const bool next = !Mod::get()->getSettingValue<bool>("show-fps");
-            Mod::get()->setSettingValue<bool>("show-fps", next);
+            Mod::get()->setSettingValue<bool>("show-fps",
+                !Mod::get()->getSettingValue<bool>("show-fps"));
             syncLabels();
         }
 
@@ -267,13 +382,11 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 
     void postUpdate(float dt) {
         PlayLayer::postUpdate(dt);
-
         if (!m_fields->overlay) {
             m_fields->overlay = FrameGuardOverlay::create();
             if (m_fields->overlay) this->addChild(m_fields->overlay, kOverlayZ);
         }
         if (m_fields->overlay) m_fields->overlay->refresh(this);
-
         if (!m_fields->menu && m_uiLayer) {
             m_fields->menu = FrameGuardMenu::create();
             if (m_fields->menu) m_uiLayer->addChild(m_fields->menu, kOverlayZ);
@@ -291,5 +404,5 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard loaded: engine object bounds, player bounds, trail, and in-game toggles.");
+    log::info("Frame-Guard loaded: collision geometry, player hitboxes, trail, FPS and in-game controls.");
 }
