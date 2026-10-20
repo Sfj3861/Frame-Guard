@@ -19,6 +19,17 @@ namespace {
     constexpr int kOverlayZ = 9999;
     constexpr std::size_t kTrailLimit = 48;
 
+    class FrameGuardOverlay;
+    static FrameGuardOverlay* g_activeOverlay = nullptr;
+    static bool g_replayingGuardInput = false;
+    struct PendingGuardInput {
+        PlayerObject* player = nullptr;
+        PlayerButton button = PlayerButton::Jump;
+        int age = 0;
+        int maxTicks = 1;
+    };
+    static std::deque<PendingGuardInput> g_pendingGuardInputs;
+
     std::string toggleText(char const* name, bool value) {
         return fmt::format("{}: {}", name, value ? "ON" : "OFF");
     }
@@ -118,6 +129,7 @@ namespace {
             this->addChild(m_draw);
             this->setPosition(cocos2d::CCPointZero);
             this->setID("frame-guard-overlay");
+            g_activeOverlay = this;
             return true;
         }
 
@@ -134,7 +146,8 @@ namespace {
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
             const int marginTicks = std::clamp(Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
 
-            if ((showHitboxes || showTrajectory) && layer->m_objects) {
+            const bool inputGuardEnabled = Mod::get()->getSettingValue<bool>("input-guard-enabled");
+            if ((showHitboxes || showTrajectory || inputGuardEnabled) && layer->m_objects) {
                 // Build the collision cache for both drawing and path-safety checks.
                 const auto count = layer->m_objects->count();
                 if (count != m_cachedObjectCount) {
@@ -174,6 +187,74 @@ namespace {
                 if (layer->m_player2 && layer->m_player2->isRunning())
                     drawPlayerGeometry(layer->m_player2);
             }
+        }
+
+        // Conservative, approximate collision-window query. It predicts the player's
+        // near-term path using current velocity and checks actual level collision objects.
+        // It is intentionally opt-in: this is not a full clone of GD physics and cannot
+        // certify safety for every mode, trigger, portal, or input-specific impulse.
+        int findSafeInputOffset(PlayerObject* player, int horizon) const {
+            if (!player || player->m_isDead || m_collisionObjects.empty()) return -1;
+            horizon = std::clamp(horizon, 1, 12);
+            auto pos = player->getPosition();
+            float x = pos.x;
+            float y = pos.y;
+            double vx = player->getCurrentXVelocity();
+            double vy = player->getYVelocity();
+            const float gravitySign = static_cast<float>(player->flipMod());
+            const float gravity = static_cast<float>(player->m_gravity * player->m_gravityMod);
+            const bool held = FrameGuardTelemetry::isHeld(player->m_isSecondPlayer);
+            const auto rect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
+            const float hw = std::max(2.f, rect.size.width * 0.5f);
+            const float hh = std::max(2.f, rect.size.height * 0.5f);
+            constexpr float step = 0.5f;
+
+            auto clearAt = [&](float px, float py) {
+                cocos2d::CCRect box(px - hw, py - hh, hw * 2.f, hh * 2.f);
+                for (auto* object : m_collisionObjects) {
+                    if (!object || !typeIs(object, {
+                        GameObjectType::Hazard, GameObjectType::AnimatedHazard,
+                        GameObjectType::Solid, GameObjectType::Slope
+                    })) continue;
+                    if (box.intersectsRect(collisionRect(object))) return false;
+                }
+                return true;
+            };
+            auto advance = [&](float& px, float& py, double& dx, double& dy) {
+                if (player->m_isDart) {
+                    dy = held ? 6.0 : -6.0;
+                } else if (player->m_isShip || player->m_isBird || player->m_isSwing) {
+                    dy += (held ? 0.72 : -0.72) * gravitySign * step;
+                } else {
+                    dy -= gravity * gravitySign * 0.6 * step;
+                    dy = std::clamp(dy, -15.0, 15.0);
+                }
+                px += static_cast<float>(dx * step);
+                py += static_cast<float>(dy * step);
+            };
+
+            for (int offset = 0; offset < horizon; ++offset) {
+                if (clearAt(x, y)) {
+                    float tx = x, ty = y;
+                    double tvx = vx, tvy = vy;
+                    bool clearWindow = true;
+                    // Require two collision-free projected ticks around the candidate.
+                    for (int look = 0; look < 2; ++look) {
+                        advance(tx, ty, tvx, tvy);
+                        if (!clearAt(tx, ty)) {
+                            clearWindow = false;
+                            break;
+                        }
+                    }
+                    if (clearWindow) return offset;
+                }
+                advance(x, y, vx, vy);
+            }
+            return -1;
+        }
+
+        ~FrameGuardOverlay() override {
+            if (g_activeOverlay == this) g_activeOverlay = nullptr;
         }
 
     private:
@@ -613,6 +694,7 @@ namespace {
             m_guardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFrameGuard));
             m_exportButton = makeItem("Export CSV", menu_selector(FrameGuardMenu::onExportCSV));
             m_infoButton = makeItem("", menu_selector(FrameGuardMenu::onToggleInfo));
+            m_inputGuardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleInputGuard));
             m_opacitySlider = FrameGuardSlider::create("Opacity", "%", 0, 100,
                 Mod::get()->getSettingValue<int>("overlay-opacity"), [](int value) {
                     Mod::get()->setSettingValue<int>("overlay-opacity", value);
@@ -623,7 +705,7 @@ namespace {
                 });
             if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton ||
                 !m_fpsButton || !m_guardButton || !m_exportButton || !m_infoButton ||
-                !m_opacitySlider || !m_marginSlider) return false;
+                !m_inputGuardButton || !m_opacitySlider || !m_marginSlider) return false;
             this->addEventListener(
                 KeybindSettingPressedEventV3(Mod::get(), "toggle-menu"),
                 [this](Keybind const&, bool down, bool repeat, double) {
@@ -639,8 +721,9 @@ namespace {
             m_guardButton->setPosition(ccp(91.f, size.height - 160.f));
             m_exportButton->setPosition(ccp(91.f, size.height - 184.f));
             m_infoButton->setPosition(ccp(91.f, size.height - 208.f));
-            m_opacitySlider->setPosition(ccp(112.f, size.height - 242.f));
-            m_marginSlider->setPosition(ccp(112.f, size.height - 278.f));
+            m_inputGuardButton->setPosition(ccp(91.f, size.height - 232.f));
+            m_opacitySlider->setPosition(ccp(112.f, size.height - 266.f));
+            m_marginSlider->setPosition(ccp(112.f, size.height - 302.f));
             m_menu->addChild(m_openButton);
             m_menu->addChild(m_hitboxButton);
             m_menu->addChild(m_playerButton);
@@ -649,6 +732,7 @@ namespace {
             m_menu->addChild(m_guardButton);
             m_menu->addChild(m_exportButton);
             m_menu->addChild(m_infoButton);
+            m_menu->addChild(m_inputGuardButton);
             m_menu->addChild(m_opacitySlider);
             m_menu->addChild(m_marginSlider);
             m_hitboxButton->setVisible(false);
@@ -658,6 +742,7 @@ namespace {
             m_guardButton->setVisible(false);
             m_exportButton->setVisible(false);
             m_infoButton->setVisible(false);
+            m_inputGuardButton->setVisible(false);
             m_opacitySlider->setVisible(false);
             m_marginSlider->setVisible(false);
 
@@ -717,6 +802,7 @@ namespace {
             m_guardButton->setVisible(m_open);
             m_exportButton->setVisible(m_open);
             m_infoButton->setVisible(m_open);
+            m_inputGuardButton->setVisible(m_open);
             m_opacitySlider->setVisible(m_open);
             m_marginSlider->setVisible(m_open);
             syncLabels();
@@ -741,6 +827,9 @@ namespace {
             if (m_infoButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_infoButton->getLabel())->setString(
                     toggleText("Info text", showInfo).c_str());
+            if (m_inputGuardButton)
+                static_cast<cocos2d::CCLabelBMFont*>(m_inputGuardButton->getLabel())->setString(
+                    toggleText("Input guard", Mod::get()->getSettingValue<bool>("input-guard-enabled")).c_str());
             if (m_opacitySlider) m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
             if (m_marginSlider) m_marginSlider->setValue(Mod::get()->getSettingValue<int>("safe-margin-ticks"));
             if (m_guardButton)
@@ -783,6 +872,12 @@ namespace {
             return cocos2d::CCMenuItemLabel::create(label, this, callback);
         }
         void onToggleMenu(cocos2d::CCObject*) { toggleMenu(); }
+        void onToggleInputGuard(cocos2d::CCObject*) {
+            const bool enabled = Mod::get()->getSettingValue<bool>("input-guard-enabled");
+            Mod::get()->setSettingValue<bool>("input-guard-enabled", !enabled);
+            if (enabled) g_pendingGuardInputs.clear();
+            syncLabels();
+        }
         void onToggleInfo(cocos2d::CCObject*) {
             Mod::get()->setSettingValue<bool>("show-info-text",
                 !Mod::get()->getSettingValue<bool>("show-info-text"));
@@ -833,6 +928,7 @@ namespace {
         cocos2d::CCMenuItemLabel* m_guardButton = nullptr;
         cocos2d::CCMenuItemLabel* m_exportButton = nullptr;
         cocos2d::CCMenuItemLabel* m_infoButton = nullptr;
+        cocos2d::CCMenuItemLabel* m_inputGuardButton = nullptr;
         FrameGuardSlider* m_opacitySlider = nullptr;
         FrameGuardSlider* m_marginSlider = nullptr;
         cocos2d::CCPoint m_lastTouch = CCPointZero;
@@ -863,6 +959,27 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
                 this->insertBefore(m_fields->overlay, m_uiLayer);
         }
         if (m_fields->overlay) m_fields->overlay->refresh(this);
+        // Deliver queued inputs only after the collision cache has been refreshed.
+        for (auto it = g_pendingGuardInputs.begin(); it != g_pendingGuardInputs.end();) {
+            auto* player = it->player;
+            if (!player || player->m_isDead) {
+                it = g_pendingGuardInputs.erase(it);
+                continue;
+            }
+            int offset = g_activeOverlay
+                ? g_activeOverlay->findSafeInputOffset(player, std::max(1, it->maxTicks - it->age))
+                : -1;
+            if (offset <= 0 || it->age >= it->maxTicks) {
+                const auto button = it->button;
+                it = g_pendingGuardInputs.erase(it);
+                g_replayingGuardInput = true;
+                player->pushButton(button);
+                g_replayingGuardInput = false;
+            } else {
+                ++it->age;
+                ++it;
+            }
+        }
         if (!m_fields->menu && m_uiLayer) {
             m_fields->menu = FrameGuardMenu::create();
             if (m_fields->menu) m_uiLayer->addChild(m_fields->menu, kOverlayZ);
@@ -877,6 +994,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
     void resetLevel() {
         if (m_fields->overlay) m_fields->overlay->resetTrail();
         FrameGuardTelemetry::reset();
+        g_pendingGuardInputs.clear();
         PlayLayer::resetLevel();
     }
 };
@@ -887,6 +1005,20 @@ $on_mod(Loaded) {
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
     bool pushButton(PlayerButton button) {
+        if (!g_replayingGuardInput && button == PlayerButton::Jump &&
+            Mod::get()->getSettingValue<bool>("input-guard-enabled") && g_activeOverlay) {
+            const int horizon = std::clamp(
+                Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
+            if (horizon > 0) {
+                const int offset = g_activeOverlay->findSafeInputOffset(this, horizon);
+                // If the current tick is unsafe but a candidate exists in the configured
+                // window, retain the press briefly. Unknown/no-safe-window falls back now.
+                if (offset > 0) {
+                    g_pendingGuardInputs.push_back(PendingGuardInput{this, button, 0, horizon});
+                    return false;
+                }
+            }
+        }
         bool result = PlayerObject::pushButton(button);
         if (button == PlayerButton::Jump)
             FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, true);
@@ -895,6 +1027,11 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
     }
 
     bool releaseButton(PlayerButton button) {
+        // Never deliver a stale delayed press after the physical input was released.
+        g_pendingGuardInputs.erase(std::remove_if(g_pendingGuardInputs.begin(),
+            g_pendingGuardInputs.end(), [this, button](PendingGuardInput const& pending) {
+                return pending.player == this && pending.button == button;
+            }), g_pendingGuardInputs.end());
         bool result = PlayerObject::releaseButton(button);
         if (button == PlayerButton::Jump)
             FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
