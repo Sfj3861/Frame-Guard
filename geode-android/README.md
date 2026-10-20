@@ -46,3 +46,9 @@ The trajectory overlay now projects a short approximate future path for both pla
 - Advances the input-window and hazard-warning estimates one modeled update per tick instead of half an update, so displayed tick counts have consistent meaning.
 - Treats an empty hazard cache as a clear simulated path instead of incorrectly reporting that no input window exists.
 - This is still a forward estimate, not a replay of Geometry Dash's complete physics, triggers, portals, and collision solver. Test in-game before relying on timing labels.
+
+
+### v0.15.1 — flight-mode tick routing
+
+- Routes bird flight through the continuous-input timing estimate instead of the generic gravity-only hazard lead-time estimate, matching the mode handling used by the forward trajectory preview.
+- Keeps the timing display explicitly approximate; the forecast does not replay Geometry Dash's complete physics, triggers, portals, or collision solver.
