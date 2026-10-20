@@ -45,6 +45,28 @@
       "default": true,
       "description": "Display frame counter, input count, and last input timing on screen."
     },
+    "show-info-text": {
+      "name": "Show informational text",
+      "type": "bool",
+      "default": true,
+      "description": "Show or hide informational HUD text."
+    },
+    "overlay-opacity": {
+      "name": "Overlay opacity",
+      "type": "int",
+      "default": 100,
+      "min": 0,
+      "max": 100,
+      "description": "Opacity of hitboxes and trajectory, from transparent to fully visible."
+    },
+    "safe-margin-ticks": {
+      "name": "Safe margin ticks",
+      "type": "int",
+      "default": 3,
+      "min": 0,
+      "max": 12,
+      "description": "Display setting for the safety prediction margin. This does not delay or alter gameplay input."
+    },
     "toggle-menu": {
       "name": "Toggle Frame-Guard menu",
       "type": "keybind",
