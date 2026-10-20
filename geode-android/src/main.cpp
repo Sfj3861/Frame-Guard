@@ -193,6 +193,12 @@ namespace {
             for (std::size_t j = 0; j < i; ++j) {
                 if (g_pendingInputs[j].player == item.player) { blockedByEarlierEdge = true; break; }
             }
+            // A deferred edge must never be replayed after the player has died.
+            // The layer owns the player lifetime; onExit/resetLevel also clear this queue.
+            if (!item.player || item.player->m_isDead) {
+                g_pendingInputs.erase(g_pendingInputs.begin() + static_cast<std::ptrdiff_t>(i));
+                continue;
+            }
             if (blockedByEarlierEdge || shouldWaitForInput(layer, item)) { ++i; continue; }
             auto apply = std::move(item.apply);
             g_pendingInputs.erase(g_pendingInputs.begin() + static_cast<std::ptrdiff_t>(i));
@@ -1018,13 +1024,13 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
         PlayLayer::postUpdate(dt);
         FrameGuardTelemetry::nextFrame();
         processScheduledInputs(this, dt);
-        if (!m_fields->overlay) {
+        if (!m_fields->overlay && m_objectLayer) {
             m_fields->overlay = FrameGuardOverlay::create();
             // GameObject positions and collision rectangles are expressed in the
             // object-layer coordinate space. Parenting the overlay to PlayLayer itself
             // makes it drift relative to scrolling/zoom transforms on some devices.
             // Keep drawing in the same transformed layer as the level objects.
-            if (m_fields->overlay && m_objectLayer)
+            if (m_fields->overlay)
                 m_objectLayer->addChild(m_fields->overlay, 9999);
         }
         if (m_fields->overlay) m_fields->overlay->refresh(this);
@@ -1046,6 +1052,15 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
         FrameGuardTelemetry::reset();
         g_activePlayLayer = this;
         PlayLayer::resetLevel();
+    }
+
+    void onExit() {
+        // Avoid retaining PlayerObject pointers or scheduling inputs after leaving a level.
+        if (g_activePlayLayer == this) {
+            g_pendingInputs.clear();
+            g_activePlayLayer = nullptr;
+        }
+        PlayLayer::onExit();
     }
 };
 
