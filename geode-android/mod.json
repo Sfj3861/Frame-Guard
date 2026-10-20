@@ -7,7 +7,7 @@
   "name": "Frame-Guard",
   "version": "v0.10.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with touch-draggable controls, opacity slider, collision-risk trajectory preview, configurable safety margin, and optional information text.",
+  "description": "Frame-Guard Android overlay with collision diagnostics, approximate trajectory preview, bilingual floating controls, configurable FPS-derived input-delay budget, and opt-in predictive Jump input scheduling.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes / Mostrar cajas de colisión",
@@ -86,7 +86,7 @@
       "default": 200,
       "min": 0,
       "max": 200,
-      "description": "Configurable time budget in milliseconds. The corresponding tick count is rounded down using effective FPS. This setting does not delay inputs yet. / Límite temporal configurable en milisegundos. Los ticks correspondientes se redondean hacia abajo según los FPS efectivos. Este ajuste todavía no retrasa las entradas."
+      "description": "Configurable maximum wait budget in milliseconds; ticks are floor(effective FPS × milliseconds / 1000). Used by the optional smart Jump input scheduler. / Límite máximo de espera en milisegundos; los ticks son floor(FPS efectivos × milisegundos / 1000). Lo usa el planificador inteligente opcional del botón de salto."
     },
     "input-scheduler-enabled": {
       "name": "Smart input delay / Espera inteligente de entrada",
