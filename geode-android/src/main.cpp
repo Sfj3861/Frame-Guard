@@ -27,6 +27,7 @@ namespace {
         PlayerButton button = PlayerButton::Jump;
         int age = 0;
         int maxTicks = 1;
+        bool releaseRequested = false;
     };
     static std::deque<PendingGuardInput> g_pendingGuardInputs;
 
@@ -971,9 +972,11 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
                 : -1;
             if (offset <= 0 || it->age >= it->maxTicks) {
                 const auto button = it->button;
+                const bool releaseAfterDelivery = it->releaseRequested;
                 it = g_pendingGuardInputs.erase(it);
                 g_replayingGuardInput = true;
                 player->pushButton(button);
+                if (releaseAfterDelivery) player->releaseButton(button);
                 g_replayingGuardInput = false;
             } else {
                 ++it->age;
@@ -1014,7 +1017,7 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
                 // If the current tick is unsafe but a candidate exists in the configured
                 // window, retain the press briefly. Unknown/no-safe-window falls back now.
                 if (offset > 0) {
-                    g_pendingGuardInputs.push_back(PendingGuardInput{this, button, 0, horizon});
+                    g_pendingGuardInputs.push_back(PendingGuardInput{this, button, 0, horizon, false});
                     return false;
                 }
             }
@@ -1027,11 +1030,15 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
     }
 
     bool releaseButton(PlayerButton button) {
-        // Never deliver a stale delayed press after the physical input was released.
-        g_pendingGuardInputs.erase(std::remove_if(g_pendingGuardInputs.begin(),
-            g_pendingGuardInputs.end(), [this, button](PendingGuardInput const& pending) {
-                return pending.player == this && pending.button == button;
-            }), g_pendingGuardInputs.end());
+        // Preserve a quick tap: if its press is queued, queue the release edge too.
+        auto pending = std::find_if(g_pendingGuardInputs.begin(), g_pendingGuardInputs.end(),
+            [this, button](PendingGuardInput const& item) {
+                return item.player == this && item.button == button;
+            });
+        if (pending != g_pendingGuardInputs.end()) {
+            pending->releaseRequested = true;
+            return false;
+        }
         bool result = PlayerObject::releaseButton(button);
         if (button == PlayerButton::Jump)
             FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
