@@ -155,7 +155,7 @@ namespace {
             const bool showHitboxes = Mod::get()->getSettingValue<bool>("show-hitboxes");
             const bool showPlayerBounds = Mod::get()->getSettingValue<bool>("show-player-bounds");
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
-            const int marginTicks = std::clamp(Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
+            const int horizonTicks = std::clamp(Mod::get()->getSettingValue<int>("prediction-horizon-ticks"), 1, 12);
             const bool showSafeWindow = Mod::get()->getSettingValue<bool>("show-safe-window");
 
             if ((showHitboxes || showTrajectory || showSafeWindow) && layer->m_objects) {
@@ -221,7 +221,7 @@ namespace {
                     drawPlayerGeometry(layer->m_player2);
             }
 
-            updatePredictionLabels(layer, showSafeWindow, marginTicks);
+            updatePredictionLabels(layer, showSafeWindow, horizonTicks);
         }
 
         void updatePredictionLabels(PlayLayer* layer, bool enabled, int horizon) {
@@ -273,7 +273,8 @@ namespace {
         // modes where held/released input continuously changes vertical motion.
         // It does not emulate GD's full physics, collision resolution, triggers or portals.
         bool isInputDelayPathClear(PlayerObject* player, int horizon, int delayTicks, bool targetHeld) const {
-            if (!player || player->m_isDead || m_collisionObjects.empty()) return false;
+            if (!player || player->m_isDead) return false;
+            if (m_collisionObjects.empty()) return true;
             horizon = std::clamp(horizon, 1, 12);
             delayTicks = std::clamp(delayTicks, 0, horizon - 1);
             auto pos = player->getPosition();
@@ -287,7 +288,7 @@ namespace {
             const auto rect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
             const float hw = std::max(2.f, rect.size.width * 0.5f);
             const float hh = std::max(2.f, rect.size.height * 0.5f);
-            constexpr float step = 0.5f;
+            constexpr float step = 1.0f;
 
             auto clearOfHazards = [&](float px, float py) {
                 cocos2d::CCRect box(px - hw, py - hh, hw * 2.f, hh * 2.f);
@@ -822,9 +823,13 @@ namespace {
                 Mod::get()->getSettingValue<int>("safe-margin-ticks"), [](int value) {
                     Mod::get()->setSettingValue<int>("safe-margin-ticks", value);
                 });
+            m_horizonSlider = FrameGuardSlider::create("Forecast", " ticks", 1, 12,
+                Mod::get()->getSettingValue<int>("prediction-horizon-ticks"), [](int value) {
+                    Mod::get()->setSettingValue<int>("prediction-horizon-ticks", value);
+                });
             if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton ||
                 !m_fpsButton || !m_guardButton || !m_exportButton || !m_infoButton ||
-                !m_inputGuardButton || !m_opacitySlider || !m_marginSlider) return false;
+                !m_inputGuardButton || !m_opacitySlider || !m_marginSlider || !m_horizonSlider) return false;
             this->addEventListener(
                 KeybindSettingPressedEventV3(Mod::get(), "toggle-menu"),
                 [this](Keybind const&, bool down, bool repeat, double) {
@@ -843,6 +848,7 @@ namespace {
             m_inputGuardButton->setPosition(ccp(91.f, size.height - 232.f));
             m_opacitySlider->setPosition(ccp(112.f, size.height - 266.f));
             m_marginSlider->setPosition(ccp(112.f, size.height - 302.f));
+            m_horizonSlider->setPosition(ccp(112.f, size.height - 338.f));
             m_menu->addChild(m_openButton);
             m_menu->addChild(m_hitboxButton);
             m_menu->addChild(m_playerButton);
@@ -854,6 +860,7 @@ namespace {
             m_menu->addChild(m_inputGuardButton);
             m_menu->addChild(m_opacitySlider);
             m_menu->addChild(m_marginSlider);
+            m_menu->addChild(m_horizonSlider);
             m_hitboxButton->setVisible(false);
             m_playerButton->setVisible(false);
             m_trailButton->setVisible(false);
@@ -864,6 +871,7 @@ namespace {
             m_inputGuardButton->setVisible(false);
             m_opacitySlider->setVisible(false);
             m_marginSlider->setVisible(false);
+            m_horizonSlider->setVisible(false);
 
             m_fpsLabel = cocos2d::CCLabelBMFont::create("FPS: --", "bigFont.fnt");
             if (m_fpsLabel) {
@@ -924,6 +932,7 @@ namespace {
             m_inputGuardButton->setVisible(m_open);
             m_opacitySlider->setVisible(m_open);
             m_marginSlider->setVisible(m_open);
+            m_horizonSlider->setVisible(m_open);
             syncLabels();
         }
 
@@ -951,6 +960,7 @@ namespace {
                     toggleText("Path preview", Mod::get()->getSettingValue<bool>("show-safe-window")).c_str());
             if (m_opacitySlider) m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
             if (m_marginSlider) m_marginSlider->setValue(Mod::get()->getSettingValue<int>("safe-margin-ticks"));
+            if (m_horizonSlider) m_horizonSlider->setValue(Mod::get()->getSettingValue<int>("prediction-horizon-ticks"));
             if (m_guardButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_guardButton->getLabel())->setString(
                     toggleText("FrameGuard", Mod::get()->getSettingValue<bool>("frameguard-enabled")).c_str());
@@ -1049,6 +1059,7 @@ namespace {
         cocos2d::CCMenuItemLabel* m_inputGuardButton = nullptr;
         FrameGuardSlider* m_opacitySlider = nullptr;
         FrameGuardSlider* m_marginSlider = nullptr;
+        FrameGuardSlider* m_horizonSlider = nullptr;
         cocos2d::CCPoint m_lastTouch = CCPointZero;
         bool m_dragging = false;
         cocos2d::CCLabelBMFont* m_fpsLabel = nullptr;
@@ -1099,7 +1110,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard v0.14.1 loaded: live collision geometry, actual player-box history, rectangle-based hitbox culling and eight-step trajectory estimate. Inputs are never delayed or automated.");
+    log::info("Frame-Guard v0.15.0 loaded: independent tick horizon, one-update-per-tick input-window simulation, live collision geometry and optimized trajectory checks. Inputs are never delayed or automated.");
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
