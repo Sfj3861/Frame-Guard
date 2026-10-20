@@ -205,14 +205,33 @@ namespace {
                     return;
                 }
                 label->setVisible(true);
-                const int collisionTick = findHazardCollisionTick(player, std::max(1, horizon));
+                const int windowHorizon = std::clamp(horizon, 1, 12);
                 std::string message;
-                if (collisionTick < 0) {
-                    message = fmt::format("PATH CLEAR: {} TICK HORIZON", std::max(1, horizon));
+                if (!(player->m_isDart || player->m_isShip || player->m_isBird || player->m_isSwing)) {
+                    const int collisionTick = findHazardCollisionTick(player, windowHorizon);
+                    message = collisionTick < 0
+                        ? fmt::format("PATH CLEAR: {} TICKS (APPROX)", windowHorizon)
+                        : fmt::format("HAZARD IN {} TICKS (APPROX)", collisionTick);
                 } else {
-                    const int leadTicks = std::max(0, collisionTick - 1);
-                    message = fmt::format("HAZARD IN {} TICKS | LEAD {} TICKS",
-                        collisionTick, leadTicks);
+                    const bool held = FrameGuardTelemetry::isHeld(player->m_isSecondPlayer);
+                    int firstSafe = -1;
+                    int lastSafe = -1;
+                    for (int delay = 0; delay < windowHorizon; ++delay) {
+                        if (isInputDelayPathClear(player, windowHorizon, delay, !held)) {
+                            if (firstSafe < 0) firstSafe = delay;
+                            lastSafe = delay;
+                        } else if (firstSafe >= 0) {
+                            break;
+                        }
+                    }
+                    if (firstSafe < 0) {
+                        message = fmt::format("{} NOW: NO CLEAR WINDOW", held ? "RELEASE" : "PRESS");
+                    } else if (firstSafe == lastSafe) {
+                        message = fmt::format("{} IN {} TICKS (EST.)", held ? "RELEASE" : "PRESS", firstSafe);
+                    } else {
+                        message = fmt::format("{} WINDOW {}-{} TICKS (EST.)",
+                            held ? "RELEASE" : "PRESS", firstSafe, lastSafe);
+                    }
                 }
                 label->setString(message.c_str());
                 auto pos = player->getPosition();
@@ -223,12 +242,13 @@ namespace {
                 m_windowLabel2);
         }
 
-        // Predict the first hazard contact along the current input trajectory.
-        // This is a lead-time estimate, NOT a guaranteed safe click window: it does not
-        // simulate input-specific impulses, future triggers, portals, or exact GD physics.
-        int findHazardCollisionTick(PlayerObject* player, int horizon) const {
-            if (!player || player->m_isDead || m_collisionObjects.empty()) return -1;
+        // Approximate continuous-input simulation. It intentionally supports only
+        // modes where held/released input continuously changes vertical motion.
+        // It does not emulate GD's full physics, collision resolution, triggers or portals.
+        bool isInputDelayPathClear(PlayerObject* player, int horizon, int delayTicks, bool targetHeld) const {
+            if (!player || player->m_isDead || m_collisionObjects.empty()) return false;
             horizon = std::clamp(horizon, 1, 12);
+            delayTicks = std::clamp(delayTicks, 0, horizon - 1);
             auto pos = player->getPosition();
             float x = pos.x;
             float y = pos.y;
@@ -236,7 +256,7 @@ namespace {
             double vy = player->getYVelocity();
             const float gravitySign = static_cast<float>(player->flipMod());
             const float gravity = static_cast<float>(player->m_gravity * player->m_gravityMod);
-            const bool held = FrameGuardTelemetry::isHeld(player->m_isSecondPlayer);
+            const bool currentHeld = FrameGuardTelemetry::isHeld(player->m_isSecondPlayer);
             const auto rect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
             const float hw = std::max(2.f, rect.size.width * 0.5f);
             const float hh = std::max(2.f, rect.size.height * 0.5f);
@@ -253,22 +273,55 @@ namespace {
                 }
                 return true;
             };
-            auto advance = [&](float& px, float& py, double& dx, double& dy) {
+
+            for (int tick = 0; tick < horizon; ++tick) {
+                const bool held = tick < delayTicks ? currentHeld : targetHeld;
                 if (player->m_isDart) {
-                    dy = held ? 6.0 : -6.0;
-                } else if (player->m_isShip || player->m_isBird || player->m_isSwing) {
-                    dy += (held ? 0.72 : -0.72) * gravitySign * step;
+                    vy = held ? 6.0 : -6.0;
                 } else {
-                    dy -= gravity * gravitySign * 0.6 * step;
-                    dy = std::clamp(dy, -15.0, 15.0);
+                    vy += (held ? 0.72 : -0.72) * gravitySign * step;
+                    vy = std::clamp(vy, -15.0, 15.0);
                 }
-                px += static_cast<float>(dx * step);
-                py += static_cast<float>(dy * step);
-            };
+                x += static_cast<float>(vx * step);
+                y += static_cast<float>(vy * step);
+                if (!clearOfHazards(x, y)) return false;
+            }
+            return true;
+        }
+
+        // Current-input lead time for modes without a supported input-window model.
+        int findHazardCollisionTick(PlayerObject* player, int horizon) const {
+            if (!player || player->m_isDead || m_collisionObjects.empty()) return -1;
+            horizon = std::clamp(horizon, 1, 12);
+            auto pos = player->getPosition();
+            float x = pos.x;
+            float y = pos.y;
+            double vx = player->getCurrentXVelocity();
+            double vy = player->getYVelocity();
+            const float gravitySign = static_cast<float>(player->flipMod());
+            const float gravity = static_cast<float>(player->m_gravity * player->m_gravityMod);
+            const bool held = FrameGuardTelemetry::isHeld(player->m_isSecondPlayer);
+            const auto rect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
+            const float hw = std::max(2.f, rect.size.width * 0.5f);
+            const float hh = std::max(2.f, rect.size.height * 0.5f);
+            constexpr float step = 0.5f;
 
             for (int tick = 1; tick <= horizon; ++tick) {
-                advance(x, y, vx, vy);
-                if (!clearOfHazards(x, y)) return tick;
+                if (player->m_isDart) vy = held ? 6.0 : -6.0;
+                else {
+                    vy -= gravity * gravitySign * 0.6 * step;
+                    vy = std::clamp(vy, -15.0, 15.0);
+                }
+                x += static_cast<float>(vx * step);
+                y += static_cast<float>(vy * step);
+                cocos2d::CCRect box(x - hw, y - hh, hw * 2.f, hh * 2.f);
+                for (auto* object : m_collisionObjects) {
+                    if (!object) continue;
+                    const bool hazard = typeIs(object, {
+                        GameObjectType::Hazard, GameObjectType::AnimatedHazard
+                    }) || (object->m_objectType == GameObjectType::Slope && object->m_slopeIsHazard);
+                    if (hazard && box.intersectsRect(collisionRect(object))) return tick;
+                }
             }
             return -1;
         }
