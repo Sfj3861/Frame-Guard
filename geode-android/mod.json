@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.12.0",
+  "version": "v0.13.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with collision diagnostics, approximate trajectory preview, bilingual floating controls, configurable FPS-derived input-delay budget, and opt-in predictive Jump input scheduling.",
+  "description": "Frame-Guard Android overlay with object-layer-aligned collision diagnostics, approximate trajectory preview, bilingual floating controls, input telemetry export, and an opt-in experimental Jump scheduler.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes / Mostrar cajas de colisión",
