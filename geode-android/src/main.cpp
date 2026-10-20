@@ -247,7 +247,6 @@ namespace {
             const bool showHitboxes = Mod::get()->getSettingValue<bool>("show-hitboxes");
             const bool showPlayerBounds = Mod::get()->getSettingValue<bool>("show-player-bounds");
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
-            const int marginTicks = std::clamp(Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
 
             if ((showHitboxes || showTrajectory) && layer->m_objects) {
                 // Build the collision cache for both drawing and path-safety checks.
@@ -1065,7 +1064,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard loaded: collision geometry, player hitboxes, trail, FPS and in-game controls.");
+    log::info("Frame-Guard loaded: collision geometry, player bounds, trajectory preview, telemetry and in-game controls.");
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
