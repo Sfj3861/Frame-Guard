@@ -1,15 +1,7 @@
-name: Build Frame-Guard Android64
+# Legacy manual-only build. Automatic CI and prereleases are handled by build-android-geode.yml.
+name: Legacy Frame-Guard Android64 build
 
 on:
-  push:
-    branches: ["**"]
-    paths:
-      - "geode-android/**"
-      - ".github/workflows/build-frame-guard.yml"
-  pull_request:
-    paths:
-      - "geode-android/**"
-      - ".github/workflows/build-frame-guard.yml"
   workflow_dispatch:
 
 jobs:
