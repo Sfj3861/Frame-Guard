@@ -36,7 +36,18 @@ namespace {
         static std::uint64_t lastFrame = 0;
         static long long lastMicros = -1;
         static long long deltaMicros = 0;
+        static bool heldPlayer1 = false;
+        static bool heldPlayer2 = false;
         static std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+
+        static bool isHeld(bool secondPlayer) {
+            return secondPlayer ? heldPlayer2 : heldPlayer1;
+        }
+
+        static void setHeld(bool secondPlayer, bool held) {
+            if (secondPlayer) heldPlayer2 = held;
+            else heldPlayer1 = held;
+        }
 
         static void nextFrame() { ++frame; }
         static void record(PlayerButton button, bool pressed) {
@@ -57,6 +68,8 @@ namespace {
             lastButton = -1;
             lastMicros = -1;
             deltaMicros = 0;
+            heldPlayer1 = false;
+            heldPlayer2 = false;
             events.clear();
             started = std::chrono::steady_clock::now();
         }
@@ -126,20 +139,15 @@ namespace {
                 }
             }
 
-            // Trajectory mode keeps a fading history of the player's collision
-            // boxes, not just a line through sprite centers. This is intentionally
-            // captured from live game geometry; it does not alter player physics.
+            // Project a short future path from the current velocity and held input.
+            // This is a lightweight approximation: it does not execute the game's
+            // collision/trigger system, so portals and future contacts are not predicted.
             if (showTrajectory && layer->m_player1) {
-                captureTrail(layer->m_player1, m_trail1);
+                drawPrediction(layer->m_player1, FrameGuardTelemetry::isHeld(false),
+                    cocos2d::ccc4f(0.10f, 0.82f, 1.0f, 1.0f));
                 if (layer->m_player2 && layer->m_player2->isRunning())
-                    captureTrail(layer->m_player2, m_trail2);
-                else
-                    m_trail2.clear();
-                drawTrail(m_trail1, cocos2d::ccc4f(0.10f, 0.82f, 1.0f, 1.0f));
-                drawTrail(m_trail2, cocos2d::ccc4f(1.0f, 0.45f, 0.10f, 1.0f));
-            } else {
-                m_trail1.clear();
-                m_trail2.clear();
+                    drawPrediction(layer->m_player2, FrameGuardTelemetry::isHeld(true),
+                        cocos2d::ccc4f(1.0f, 0.45f, 0.10f, 1.0f));
             }
 
             if (showPlayerBounds || showHitboxes) {
@@ -265,6 +273,62 @@ namespace {
             }
         }
 
+        void drawPrediction(PlayerObject* player, bool held, cocos2d::ccColor4F colour) {
+            if (!player || player->m_isDead) return;
+
+            constexpr int iterations = 120;
+            constexpr float step = 0.5f;
+            constexpr int boxEvery = 6;
+            auto position = player->getPosition();
+            float x = position.x;
+            float y = position.y;
+            double xVelocity = player->getCurrentXVelocity();
+            double yVelocity = player->getYVelocity();
+            const float gravitySign = static_cast<float>(player->flipMod());
+            const float gravity = static_cast<float>(player->m_gravity * player->m_gravityMod);
+            const auto currentRect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
+            const float halfWidth = std::max(2.0f, currentRect.size.width * 0.5f);
+            const float halfHeight = std::max(2.0f, currentRect.size.height * 0.5f);
+            cocos2d::CCPoint previous = ccp(x, y);
+
+            for (int i = 1; i <= iterations; ++i) {
+                if (player->m_isDart) {
+                    // Wave-like movement changes vertical direction directly with input.
+                    yVelocity = held ? 6.0 : -6.0;
+                } else if (player->m_isShip || player->m_isBird || player->m_isSwing) {
+                    // Flight modes accelerate up while held and down while released.
+                    const double thrust = held ? 0.72 : -0.72;
+                    yVelocity += thrust * gravitySign * step;
+                } else {
+                    yVelocity -= gravity * gravitySign * 0.6 * step;
+                    yVelocity = std::clamp(yVelocity, -15.0, 15.0);
+                }
+
+                x += static_cast<float>(xVelocity * step);
+                y += static_cast<float>(yVelocity * step);
+                const auto current = ccp(x, y);
+                auto segmentColour = colour;
+                segmentColour.a = 0.72f * (1.0f - static_cast<float>(i) /
+                    static_cast<float>(iterations) * 0.55f);
+                m_draw->drawSegment(previous, current, 1.15f, segmentColour);
+                previous = current;
+
+                if (i % boxEvery == 0) {
+                    cocos2d::CCPoint box[] = {
+                        ccp(x - halfWidth, y - halfHeight), ccp(x + halfWidth, y - halfHeight),
+                        ccp(x + halfWidth, y + halfHeight), ccp(x - halfWidth, y + halfHeight)
+                    };
+                    auto boxColour = colour;
+                    boxColour.a = 0.10f + 0.20f * (1.0f - static_cast<float>(i) /
+                        static_cast<float>(iterations));
+                    m_draw->drawPolygon(box, 4, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
+                        0.65f, boxColour, cocos2d::BorderAlignment::Inside);
+                }
+
+                if (x > position.x + 900.f || y < -200.f || y > 1400.f) break;
+            }
+        }
+
         void drawObjectGeometry(GameObject* obj) {
             const auto colour = colourFor(obj);
             const float width = 0.7f;
@@ -359,8 +423,6 @@ namespace {
         }
 
         cocos2d::CCDrawNode* m_draw = nullptr;
-        std::deque<PlayerSnapshot> m_trail1;
-        std::deque<PlayerSnapshot> m_trail2;
     };
 
     class FrameGuardMenu final : public cocos2d::CCNode {
@@ -619,12 +681,16 @@ $on_mod(Loaded) {
 class $modify(FrameGuardPlayerObject, PlayerObject) {
     bool pushButton(PlayerButton button) {
         bool result = PlayerObject::pushButton(button);
+        if (button == PlayerButton::Jump)
+            FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, true);
         FrameGuardTelemetry::record(button, true);
         return result;
     }
 
     bool releaseButton(PlayerButton button) {
         bool result = PlayerObject::releaseButton(button);
+        if (button == PlayerButton::Jump)
+            FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
         FrameGuardTelemetry::record(button, false);
         return result;
     }
