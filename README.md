@@ -1,26 +1,43 @@
 # Frame-Guard
 
-**Frame-Guard** is an open-source, standalone laboratory for studying frame timing, input timestamps, and reproducible gameplay experiments.
+**Frame-Guard** is a timing and gameplay-diagnostics project with two separate targets:
 
-> Status: early prototype. This project does not modify Geometry Dash, intercept live gameplay, prevent deaths, or provide hidden assistance for official level completions.
+- A small standalone C++ timing-analysis prototype in the repository root.
+- A native **Geode mod for Geometry Dash Android 64-bit**, in `geode-android/`.
 
-## Goals
+The Geode mod is an experimental diagnostic tool. It can display approximate collision geometry, player bounds and an estimated trajectory, and record recent input timing. It is not a complete reproduction of Geometry Dash physics, and no feature is guaranteed to work correctly until tested in the game.
 
-- Record and inspect synthetic input events with frame numbers and timestamps.
-- Compare event timing across simulated frame rates.
-- Run repeatable, offline experiments with a configurable event window (up to 16 events).
-- Export readable logs for debugging and research.
-- Keep the first version dependency-free and easy to compile.
+## Android / Geode target
 
-## Scope and integrity
+The current development version is listed in [`geode-android/mod.json`](geode-android/mod.json). The mod targets:
 
-Frame-Guard is a timing-analysis sandbox, not a clone of a private cheat. It does not inject code into a game, alter collision outcomes, suppress deaths, or conceal assisted play. Any future game integration must be transparent and restricted to permitted diagnostic/practice use.
+- Geometry Dash Android **2.2081**
+- Geode SDK **5.11.2**
+- Android **64-bit**
 
-## Android / Geode
+Features include camera/object-layer-aligned overlay rendering, hitbox outlines for supported objects, player bounds, approximate trajectory preview, a bilingual floating menu, FPS and input HUD, CSV export of the most recent 16 recorded input events, and an optional experimental Jump scheduler that is disabled by default.
 
-An Android-only Geode mod scaffold lives in [`geode-android/`](geode-android/README.md). It is a separate native mod target, not an APK and not yet a tested release. It currently logs when loaded; it does not intercept gameplay or alter outcomes. Follow the Geode CLI/Android NDK instructions in that directory to build for `android64` or `android32`. The metadata currently targets Geometry Dash 2.2081 on Android and must be checked against the exact installed Geode version before building.
+The overlay and trajectory are diagnostic approximations. They do not run Geometry Dash's full collision/trigger system, and the experimental scheduler can delay Jump press/release events in ways that affect gameplay. Keep it disabled unless deliberately testing it.
 
-## Build
+### Build and downloads
+
+- [Latest build runs and logs](https://github.com/Sfj3861/Frame-Guard/actions)
+- [Published Android64 prereleases](https://github.com/Sfj3861/Frame-Guard/releases)
+- [Geode mod README and installation notes](geode-android/README.md)
+
+A successful CI compile verifies that the native library and package can be built and that the package archive is structurally valid. It does **not** replace on-device testing in the exact target game/version. Back up existing mod settings and remove the mod if the game crashes or inputs behave unexpectedly.
+
+With the Geode SDK and Android toolchain installed, build from the Geode subdirectory:
+
+```sh
+cd geode-android
+geode sdk install-binaries -p android64
+geode build -p android64
+```
+
+## Standalone C++ prototype
+
+The root CMake project is independent of Geometry Dash and Geode. It prints a sample report generated from synthetic frame/input events.
 
 Requires a C++17 compiler and CMake 3.16 or newer.
 
@@ -30,24 +47,15 @@ cmake --build build
 ./build/frame-guard
 ```
 
-On Windows, run `build\Debug\frame-guard.exe` or `build\Release\frame-guard.exe`, depending on the generator.
+On Windows, run `build\\Debug\\frame-guard.exe` or `build\\Release\\frame-guard.exe`, depending on the generator.
 
-## Prototype commands
+## Integrity and limitations
 
-The initial executable prints a sample timing report from synthetic events. No game installation is needed.
-
-## Roadmap
-
-- [x] Minimal C++17 command-line prototype
-- [x] Synthetic frame/event timing report
-- [ ] CSV export
-- [ ] Unit tests for frame-window boundaries
-- [ ] Configurable simulated refresh rates
-- [ ] Documentation of measurement assumptions
+Frame-Guard is intended for transparent diagnostics and practice experimentation. It does not promise safe routes, suppress deaths, guarantee level completions, or validate the behavior of the official game engine. Any visual collision or trajectory output may be wrong in special cases such as slopes, portals, trigger-driven changes, or unusual camera transforms.
 
 ## Contributing
 
-Issues and pull requests are welcome. Please include reproduction steps and compiler/platform details for bug reports.
+Issues and pull requests are welcome. Please include the exact Geometry Dash/Geode versions, device or OS, reproduction steps, and logs when reporting problems.
 
 ## License
 
