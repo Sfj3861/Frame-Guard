@@ -145,7 +145,7 @@ namespace {
                 }
                 for (auto* object : m_collisionObjects) {
                     if (!object) continue;
-                    const auto rect = object->getObjectRect();
+                    const auto rect = collisionRect(object);
                     if (object->m_objectRadius > 0.f ||
                         (rect.size.width > 0.f && rect.size.height > 0.f))
                         drawObjectGeometry(object);
@@ -342,6 +342,17 @@ namespace {
             }
         }
 
+        static cocos2d::CCRect collisionRect(GameObject* obj) {
+            if (!obj->m_isObjectRectDirty)
+                return obj->m_objectRect;
+            const bool wasDirty = obj->m_isObjectRectDirty;
+            const bool boxOffsetWasCalculated = obj->m_boxOffsetCalculated;
+            const auto rect = obj->getObjectRect();
+            obj->m_isObjectRectDirty = wasDirty;
+            obj->m_boxOffsetCalculated = boxOffsetWasCalculated;
+            return rect;
+        }
+
         void drawObjectGeometry(GameObject* obj) {
             const auto colour = colourFor(obj);
             const float width = 0.7f;
@@ -355,9 +366,9 @@ namespace {
                 return;
             }
 
-            // Keep the game's collision-rect calculation authoritative. The
-            // returned rectangle is the level-space geometry used by the game.
-            const auto rect = obj->getObjectRect();
+            // Reuse Geometry Dash's cached collision rect when possible. If the
+            // game marks it dirty, calculate it once while restoring its dirty flags.
+            const auto rect = collisionRect(obj);
             if (rect.size.width <= 0.f || rect.size.height <= 0.f) return;
 
             if (obj->m_objectType == GameObjectType::Slope) {
@@ -669,9 +680,10 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
         FrameGuardTelemetry::nextFrame();
         if (!m_fields->overlay) {
             m_fields->overlay = FrameGuardOverlay::create();
-            // Draw in object-layer coordinates so hitboxes scroll with level geometry.
-            if (m_fields->overlay && m_objectLayer)
-                m_objectLayer->addChild(m_fields->overlay, kOverlayZ);
+            // Match QOLMod's layer placement: render in the game-layer coordinate
+            // space, immediately below the UI, so geometry tracks level scrolling.
+            if (m_fields->overlay)
+                this->insertBefore(m_fields->overlay, m_uiLayer);
         }
         if (m_fields->overlay) m_fields->overlay->refresh(this);
         if (!m_fields->menu && m_uiLayer) {
