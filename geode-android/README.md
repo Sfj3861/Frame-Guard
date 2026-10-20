@@ -32,3 +32,8 @@ The CI workflow builds an Android64 .geode package. A successful compile does no
 ### v0.8.0 validation note
 
 Hitbox rendering now checks supported gameplay object types and valid geometry, and the trajectory overlay draws historical player hitbox outlines instead of only connecting player-center positions. The floating FG control is translucent and the default keyboard shortcut is **F**; the keybind can be changed in Geode settings. Build and in-game validation are still required before calling this release tested.
+
+
+### v0.9.0 — forward trajectory preview
+
+The trajectory overlay now projects a short approximate future path for both players using current velocity and held input. It is a visual estimate only: future collisions, portals, rings, and trigger effects are not simulated. Hitboxes continue to use the game's collision rectangles/oriented boxes and omit decorative-only objects.
