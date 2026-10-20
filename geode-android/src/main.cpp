@@ -210,9 +210,9 @@ namespace {
                 if (collisionTick < 0) {
                     message = fmt::format("PATH CLEAR: {} TICK HORIZON", std::max(1, horizon));
                 } else {
-                    const int usableMargin = std::max(0, collisionTick - horizon);
-                    message = fmt::format("HAZARD IN {} TICKS | MARGIN {}",
-                        collisionTick, usableMargin);
+                    const int leadTicks = std::max(0, collisionTick - 1);
+                    message = fmt::format("HAZARD IN {} TICKS | LEAD {} TICKS",
+                        collisionTick, leadTicks);
                 }
                 label->setString(message.c_str());
                 auto pos = player->getPosition();
