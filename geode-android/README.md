@@ -27,3 +27,8 @@ With the Geode SDK and Android toolchain installed:
     geode build -p android64
 
 The CI workflow builds an Android64 .geode package. A successful compile does not replace testing inside the target game/device; input timestamps, UI positioning, transparency, keyboard behavior, and hitbox filtering still need in-game verification.
+
+
+### v0.7.0 validation note
+
+The collision overlay now filters out objects without initialized collision geometry. The floating FG control is translucent and the default keyboard shortcut is **F**; the keybind can be changed in Geode settings.
