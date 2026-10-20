@@ -477,9 +477,11 @@ namespace {
         void drawPrediction(PlayerObject* player, bool held, cocos2d::ccColor4F colour) {
             if (!player || player->m_isDead) return;
 
-            // Limit prediction to the next eight update steps; each outline is one step.
-            // The observed trail above is exact sampled history; future motion remains estimated.
-            constexpr int iterations = 8;
+            // The Forecast slider controls the same update-tick horizon used by the
+            // input-window labels. Each projected segment represents one modeled update.
+            // The observed trail above is sampled real history; future motion remains estimated.
+            const int iterations = std::clamp(
+                Mod::get()->getSettingValue<int>("prediction-horizon-ticks"), 1, 12);
             constexpr float step = 1.0f;
             constexpr int boxEvery = 1;
             auto position = player->getPosition();
