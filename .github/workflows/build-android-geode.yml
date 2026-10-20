@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - "**"
+      - main
     paths:
       - "geode-android/**"
       - ".github/workflows/build-android-geode.yml"
