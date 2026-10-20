@@ -800,7 +800,9 @@ namespace {
             ++m_frames;
             if (m_elapsed >= 0.5f) {
                 const auto fps = static_cast<int>(static_cast<float>(m_frames) / m_elapsed + 0.5f);
-                auto text = fmt::format("{}: {}", tr("FPS", "FPS"), fps);
+                const int delayTicks = effectiveDelayTicks(static_cast<float>(fps));
+                auto text = fmt::format("{}: {} | {}: {} {}", tr("FPS", "FPS"), fps,
+                    tr("Max delay", "Espera máx."), delayTicks, tr("ticks", "ticks"));
                 m_fpsLabel->setString(text.c_str());
                 m_elapsed = 0.f;
                 m_frames = 0;
