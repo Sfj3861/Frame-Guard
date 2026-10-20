@@ -60,12 +60,12 @@
       "description": "Opacity of hitboxes and trajectory, from transparent to fully visible."
     },
     "safe-margin-ticks": {
-      "name": "Safe margin ticks",
+      "name": "Prediction horizon ticks",
       "type": "int",
       "default": 3,
       "min": 0,
       "max": 12,
-      "description": "Number of candidate ticks to inspect, including the current tick (for example, 9 means current tick plus 8 future ticks). Used as a prediction horizon, not a guarantee of safety."
+      "description": "Number of future ticks to inspect for projected hazard contact. The overlay reports estimated ticks until contact and lead time; this is approximate and not a guaranteed safe input window."
     },
     "toggle-menu": {
       "name": "Toggle Frame-Guard menu",
@@ -75,10 +75,10 @@
       "description": "Toggle the floating Frame-Guard menu with the F key."
     },
     "show-safe-window": {
-      "name": "Show path prediction label",
+      "name": "Show hazard timing label",
       "type": "bool",
       "default": false,
-      "description": "Show an approximate collision-path forecast near the player. This is informational only, does not delay or change inputs, and cannot guarantee a safe action."
+      "description": "Show estimated ticks until a hazard along the projected current path and the remaining lead ticks. This is not a guaranteed safe click window and never delays or changes inputs."
     }
   }
 }
