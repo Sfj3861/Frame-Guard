@@ -95,7 +95,7 @@ def main() -> None:
 
     for action in ("actions/checkout", "actions/upload-artifact",
                    "softprops/action-gh-release", "geode-sdk/build-geode-mod"):
-        require(re.search(rf"uses:\\s*{re.escape(action)}@[0-9a-f]{{40}}", workflow) is not None,
+        require(re.search(rf"uses:\s*{re.escape(action)}@[0-9a-f]{{40}}", workflow) is not None,
                 f"{action} must be pinned to an exact commit SHA")
 
     print(
