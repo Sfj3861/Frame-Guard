@@ -117,6 +117,9 @@ namespace {
                     auto* object = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
                     // A renderable sprite is not enough: require collision geometry
                     // actually prepared by the game before drawing a hitbox.
+                    // This guard intentionally fails closed for decorative-only objects.
+                    // Keep this decision separate from drawing so disabled geometry cannot
+                    // accidentally inherit a visual sprite's rectangular bounds.
                     if (object && isCollisionObject(object) &&
                         (object->m_orientedBox || object->m_objectRadius > 0.f))
                         drawObjectGeometry(object);
