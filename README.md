@@ -27,6 +27,14 @@ The overlay and trajectory are diagnostic approximations. They do not run Geomet
 
 A successful CI compile verifies that the native library and package can be built and that the package archive is structurally valid. It does **not** replace on-device testing in the exact target game/version. Back up existing mod settings and remove the mod if the game crashes or inputs behave unexpectedly.
 
+To run the project's offline consistency checks without an Android SDK, from the repository root run:
+
+```sh
+python3 geode-android/tools/validate_project.py
+```
+
+This checks the mod/CMake version alignment, declared settings referenced by the source, target metadata, and several important source invariants. It is a static check, not a replacement for compiling or testing in-game.
+
 With the Geode SDK and Android toolchain installed, build from the Geode subdirectory:
 
 ```sh
