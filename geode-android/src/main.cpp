@@ -103,6 +103,93 @@ namespace {
         }
     }
 
+    // The scheduler is deliberately opt-in until its heuristic has been tested in-game.
+    // It only considers Jump edges and only defers when the simple forward collision
+    // estimate says applying the edge now is riskier than preserving the current input.
+    struct PendingInput {
+        PlayerObject* player = nullptr;
+        PlayerButton button = PlayerButton::Jump;
+        bool pressed = false;
+        std::uint64_t queuedAtFrame = 0;
+        std::function<void()> apply;
+    };
+    static std::deque<PendingInput> g_pendingInputs;
+    static PlayLayer* g_activePlayLayer = nullptr;
+    static float g_effectiveFPS = 60.f;
+
+    static int predictedCollisionFrame(PlayLayer* layer, PlayerObject* player, bool held, int horizon) {
+        if (!layer || !player || player->m_isDead || !layer->m_objects) return horizon + 1;
+        auto pos = player->getPosition();
+        float x = pos.x, y = pos.y;
+        double vx = player->getCurrentXVelocity();
+        double vy = player->getYVelocity();
+        const float gravitySign = static_cast<float>(player->flipMod());
+        const float gravity = static_cast<float>(player->m_gravity * player->m_gravityMod);
+        const auto rect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
+        const float hw = std::max(2.f, rect.size.width * .5f);
+        const float hh = std::max(2.f, rect.size.height * .5f);
+        const float dt = 1.f;
+        for (int tick = 1; tick <= horizon; ++tick) {
+            if (player->m_isDart) vy = held ? 6.0 : -6.0;
+            else if (player->m_isShip || player->m_isBird || player->m_isSwing)
+                vy += (held ? .72 : -.72) * gravitySign;
+            else {
+                vy -= gravity * gravitySign * .6;
+                vy = std::clamp(vy, -15.0, 15.0);
+            }
+            x += static_cast<float>(vx * dt);
+            y += static_cast<float>(vy * dt);
+            cocos2d::CCRect box(x - hw, y - hh, hw * 2.f, hh * 2.f);
+            for (unsigned int i = 0; i < layer->m_objects->count(); ++i) {
+                auto* obj = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
+                if (!obj || obj->m_isDecoration || obj->m_isDecoration2 || obj->m_unk3ee) continue;
+                const bool collidable = obj->m_objectType == GameObjectType::Hazard ||
+                    obj->m_objectType == GameObjectType::AnimatedHazard ||
+                    obj->m_objectType == GameObjectType::Solid ||
+                    (obj->m_objectType == GameObjectType::Slope && obj->m_slopeIsHazard);
+                if (!collidable) continue;
+                if (box.intersectsRect(obj->getObjectRect())) return tick;
+            }
+            if (x > pos.x + 900.f || y < -200.f || y > 1400.f) break;
+        }
+        return horizon + 1;
+    }
+
+    static bool shouldWaitForInput(PlayLayer* layer, PendingInput const& input) {
+        if (!Mod::get()->getSettingValue<bool>("input-scheduler-enabled") ||
+            !Mod::get()->getSettingValue<bool>("frameguard-enabled") ||
+            input.button != PlayerButton::Jump || !input.player || input.player->m_isDead)
+            return false;
+        const int budget = effectiveDelayTicks(g_effectiveFPS);
+        if (budget <= 0 || static_cast<int>(FrameGuardTelemetry::frame - input.queuedAtFrame) >= budget)
+            return false;
+        const bool currentHeld = FrameGuardTelemetry::isHeld(input.player->m_isSecondPlayer);
+        if (currentHeld == input.pressed) return false;
+        const int horizon = std::min(12, budget + 2);
+        const int currentRisk = predictedCollisionFrame(layer, input.player, currentHeld, horizon);
+        const int changedRisk = predictedCollisionFrame(layer, input.player, input.pressed, horizon);
+        // If the unchanged trajectory is already about to collide, never wait.
+        // Otherwise defer one frame only when the requested edge introduces an
+        // earlier predicted collision; the decision is recalculated next frame.
+        return currentRisk > 1 && changedRisk + 1 < currentRisk;
+    }
+
+    static void processScheduledInputs(PlayLayer* layer, float dt) {
+        g_activePlayLayer = layer;
+        if (std::isfinite(dt) && dt > 0.0001f) g_effectiveFPS = 1.f / dt;
+        for (std::size_t i = 0; i < g_pendingInputs.size();) {
+            auto& item = g_pendingInputs[i];
+            bool blockedByEarlierEdge = false;
+            for (std::size_t j = 0; j < i; ++j) {
+                if (g_pendingInputs[j].player == item.player) { blockedByEarlierEdge = true; break; }
+            }
+            if (blockedByEarlierEdge || shouldWaitForInput(layer, item)) { ++i; continue; }
+            auto apply = std::move(item.apply);
+            g_pendingInputs.erase(g_pendingInputs.begin() + static_cast<std::ptrdiff_t>(i));
+            if (apply) apply();
+        }
+    }
+
     // Frame-Guard draws collision geometry independently, using Geometry Dash's
     // collision rectangles, circles, slope direction and player oriented box.
     // It deliberately excludes decoration and non-collidable visual objects.
@@ -901,6 +988,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
     void postUpdate(float dt) {
         PlayLayer::postUpdate(dt);
         FrameGuardTelemetry::nextFrame();
+        processScheduledInputs(this, dt);
         if (!m_fields->overlay) {
             m_fields->overlay = FrameGuardOverlay::create();
             // Match QOLMod's layer placement: render in the game-layer coordinate
@@ -923,6 +1011,8 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
     void resetLevel() {
         if (m_fields->overlay) m_fields->overlay->resetTrail();
         FrameGuardTelemetry::reset();
+        g_pendingInputs.clear();
+        g_activePlayLayer = this;
         PlayLayer::resetLevel();
     }
 };
@@ -933,17 +1023,49 @@ $on_mod(Loaded) {
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
     bool pushButton(PlayerButton button) {
+        if (Mod::get()->getSettingValue<bool>("input-scheduler-enabled") &&
+            Mod::get()->getSettingValue<bool>("frameguard-enabled") &&
+            button == PlayerButton::Jump && g_activePlayLayer &&
+            effectiveDelayTicks(g_effectiveFPS) > 0) {
+            PendingInput pending;
+            pending.player = this;
+            pending.button = button;
+            pending.pressed = true;
+            pending.queuedAtFrame = FrameGuardTelemetry::frame;
+            pending.apply = [this, button]() {
+                PlayerObject::pushButton(button);
+                FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, true);
+                FrameGuardTelemetry::record(button, true);
+            };
+            g_pendingInputs.push_back(std::move(pending));
+            return true;
+        }
         bool result = PlayerObject::pushButton(button);
-        if (button == PlayerButton::Jump)
-            FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, true);
+        if (button == PlayerButton::Jump) FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, true);
         FrameGuardTelemetry::record(button, true);
         return result;
     }
 
     bool releaseButton(PlayerButton button) {
+        if (Mod::get()->getSettingValue<bool>("input-scheduler-enabled") &&
+            Mod::get()->getSettingValue<bool>("frameguard-enabled") &&
+            button == PlayerButton::Jump && g_activePlayLayer &&
+            effectiveDelayTicks(g_effectiveFPS) > 0) {
+            PendingInput pending;
+            pending.player = this;
+            pending.button = button;
+            pending.pressed = false;
+            pending.queuedAtFrame = FrameGuardTelemetry::frame;
+            pending.apply = [this, button]() {
+                PlayerObject::releaseButton(button);
+                FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
+                FrameGuardTelemetry::record(button, false);
+            };
+            g_pendingInputs.push_back(std::move(pending));
+            return true;
+        }
         bool result = PlayerObject::releaseButton(button);
-        if (button == PlayerButton::Jump)
-            FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
+        if (button == PlayerButton::Jump) FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
         FrameGuardTelemetry::record(button, false);
         return result;
     }
