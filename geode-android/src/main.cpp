@@ -1,5 +1,5 @@
 #include <Geode/Geode.hpp>
-#include <Geode/modify/PlayLayer.hpp>
+#include <Geode/modify/PlayLayer.hpp>\n#include <Geode/loader/SettingV3.hpp>
 #include <deque>
 #include <algorithm>
 #include <chrono>
@@ -115,7 +115,10 @@ namespace {
             if (showHitboxes && layer->m_objects) {
                 for (unsigned int i = 0; i < layer->m_objects->count(); ++i) {
                     auto* object = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
-                    if (object && isCollisionObject(object))
+                    // A renderable sprite is not enough: require collision geometry
+                    // actually prepared by the game before drawing a hitbox.
+                    if (object && isCollisionObject(object) &&
+                        (object->m_orientedBox || object->m_objectRadius > 0.f))
                         drawObjectGeometry(object);
                 }
             }
@@ -324,7 +327,27 @@ namespace {
             m_menu->setPosition(cocos2d::CCPointZero);
             this->addChild(m_menu, 1);
 
-            m_openButton = makeItem("FG", menu_selector(FrameGuardMenu::onToggleMenu));
+            auto* floatingSprite = cocos2d::CCSprite::createWithSpriteFrameName("GJ_button_01.png");
+            if (!floatingSprite) floatingSprite = cocos2d::CCSprite::create("GJ_button_01.png");
+            if (!floatingSprite) return false;
+            floatingSprite->setOpacity(0);
+            floatingSprite->setScale(0.72f);
+            m_openButton = CCMenuItemSpriteExtra::create(
+                floatingSprite, this, menu_selector(FrameGuardMenu::onToggleMenu));
+            if (m_openButton) {
+                auto* circle = cocos2d::CCDrawNode::create();
+                if (circle) {
+                    circle->drawCircle(ccp(0.f, 0.f), 19.f, cocos2d::ccc4f(0.15f, 0.72f, 1.f, 0.38f),
+                        1.5f, cocos2d::ccc4f(0.45f, 0.88f, 1.f, 0.68f), 48);
+                    m_openButton->addChild(circle, 1);
+                }
+                auto* openLabel = cocos2d::CCLabelBMFont::create("FG", "bigFont.fnt");
+                if (openLabel) {
+                    openLabel->setScale(0.48f);
+                    openLabel->setPosition(CCPointZero);
+                    m_openButton->addChild(openLabel, 2);
+                }
+            }
             m_hitboxButton = makeItem("", menu_selector(FrameGuardMenu::onToggleHitboxes));
             m_playerButton = makeItem("", menu_selector(FrameGuardMenu::onTogglePlayerBounds));
             m_trailButton = makeItem("", menu_selector(FrameGuardMenu::onToggleTrail));
@@ -332,6 +355,12 @@ namespace {
             m_guardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFrameGuard));
             m_exportButton = makeItem("Export CSV", menu_selector(FrameGuardMenu::onExportCSV));
             if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton || !m_fpsButton || !m_guardButton || !m_exportButton) return false;
+            this->addEventListener(
+                KeybindSettingPressedEventV3(Mod::get(), "toggle-menu"),
+                [this](Keybind const&, bool down, bool repeat, double) {
+                    if (down && !repeat) this->toggleMenu();
+                }
+            );
 
             m_openButton->setPosition(ccp(42.f, size.height - 34.f));
             m_hitboxButton->setPosition(ccp(91.f, size.height - 64.f));
@@ -473,7 +502,7 @@ namespace {
         }
 
         cocos2d::CCMenu* m_menu = nullptr;
-        cocos2d::CCMenuItemLabel* m_openButton = nullptr;
+        CCMenuItemSpriteExtra* m_openButton = nullptr;
         cocos2d::CCMenuItemLabel* m_hitboxButton = nullptr;
         cocos2d::CCMenuItemLabel* m_playerButton = nullptr;
         cocos2d::CCMenuItemLabel* m_trailButton = nullptr;
