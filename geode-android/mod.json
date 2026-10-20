@@ -7,7 +7,7 @@
   "name": "Frame-Guard",
   "version": "v0.12.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with an experimental opt-in input safe-window guard, collision geometry, touch controls, opacity slider, and configurable tick horizon. The guard uses approximate collision prediction and is not a guarantee of safety.",
+  "description": "Frame-Guard Android overlay with collision geometry, approximate visual path forecast, input telemetry, touch controls, opacity slider, and configurable prediction horizon. Never delays or automates inputs.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
