@@ -421,6 +421,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 
     void postUpdate(float dt) {
         PlayLayer::postUpdate(dt);
+        FrameGuardTelemetry::nextFrame();
         if (!m_fields->overlay) {
             m_fields->overlay = FrameGuardOverlay::create();
             if (m_fields->overlay) this->addChild(m_fields->overlay, kOverlayZ);
@@ -438,6 +439,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 
     void resetLevel() {
         if (m_fields->overlay) m_fields->overlay->resetTrail();
+        FrameGuardTelemetry::reset();
         PlayLayer::resetLevel();
     }
 };
@@ -445,3 +447,17 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 $on_mod(Loaded) {
     log::info("Frame-Guard loaded: collision geometry, player hitboxes, trail, FPS and in-game controls.");
 }
+
+class $modify(FrameGuardPlayerObject, PlayerObject) {
+    bool pushButton(PlayerButton button) {
+        bool result = PlayerObject::pushButton(button);
+        FrameGuardTelemetry::record(button, true);
+        return result;
+    }
+
+    bool releaseButton(PlayerButton button) {
+        bool result = PlayerObject::releaseButton(button);
+        FrameGuardTelemetry::record(button, false);
+        return result;
+    }
+};
