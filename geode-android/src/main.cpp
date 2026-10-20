@@ -188,16 +188,20 @@ namespace {
         g_activePlayLayer = layer;
         if (std::isfinite(dt) && dt > 0.0001f) g_effectiveFPS = 1.f / dt;
 
+        if (g_pendingInputs.empty()) return;
+
+        // Geometry Dash supports two live player objects at most. Use a fixed-size
+        // buffer so the normal update path never allocates memory for this bookkeeping.
+        std::array<PlayerObject*, 2> appliedThisFrame{};
+        std::size_t appliedCount = 0;
+
         // Preserve the edge sequence: do not deliver a press and its release in
         // the same update, or a short tap can be swallowed by the game.
-        std::vector<PlayerObject*> appliedThisFrame;
-        appliedThisFrame.reserve(2);
-
         for (std::size_t i = 0; i < g_pendingInputs.size();) {
             auto& item = g_pendingInputs[i];
-            bool blockedByEarlierEdge = std::find(
-                appliedThisFrame.begin(), appliedThisFrame.end(), item.player
-            ) != appliedThisFrame.end();
+            auto appliedEnd = appliedThisFrame.begin() + static_cast<std::ptrdiff_t>(appliedCount);
+            bool blockedByEarlierEdge =
+                std::find(appliedThisFrame.begin(), appliedEnd, item.player) != appliedEnd;
 
             for (std::size_t j = 0; !blockedByEarlierEdge && j < i; ++j) {
                 if (g_pendingInputs[j].player == item.player) {
@@ -222,7 +226,9 @@ namespace {
             g_pendingInputs.erase(g_pendingInputs.begin() + static_cast<std::ptrdiff_t>(i));
             if (apply) {
                 apply();
-                appliedThisFrame.push_back(appliedPlayer);
+                // With at most two live players, this cannot exceed the fixed buffer.
+                if (appliedCount < appliedThisFrame.size())
+                    appliedThisFrame[appliedCount++] = appliedPlayer;
             }
         }
     }
