@@ -42,7 +42,7 @@ The trajectory overlay now projects a short approximate future path for both pla
 ### v0.15.0 — tick-window correction
 
 - Separates **Prediction horizon** (1–12 modeled game-update ticks) from **Safe margin** (extra visual padding around projected hitboxes). The previous build reused one setting for both, so changing the tick value unintentionally changed two unrelated behaviors.
-- Adds a dedicated **Forecast** slider to the floating menu and keeps it synchronized with Geode settings.
+- Adds a dedicated **Forecast** slider to the floating menu and keeps it synchronized with Geode settings; the same value now controls the visible trajectory length and timing-label horizon.
 - Advances the input-window and hazard-warning estimates one modeled update per tick instead of half an update, so displayed tick counts have consistent meaning.
 - Treats an empty hazard cache as a clear simulated path instead of incorrectly reporting that no input window exists.
 - This is still a forward estimate, not a replay of Geometry Dash's complete physics, triggers, portals, and collision solver. Test in-game before relying on timing labels.
