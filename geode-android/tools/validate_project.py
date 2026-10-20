@@ -93,6 +93,11 @@ def main() -> None:
     require("sha256sum -c Frame-Guard-Android64.geode.sha256" in workflow,
             "workflow must verify its package checksum before upload")
 
+    for action in ("actions/checkout", "actions/upload-artifact",
+                   "softprops/action-gh-release", "geode-sdk/build-geode-mod"):
+        require(re.search(rf"uses:\\s*{re.escape(action)}@[0-9a-f]{{40}}", workflow) is not None,
+                f"{action} must be pinned to an exact commit SHA")
+
     print(
         f"Frame-Guard {version}: project metadata, {len(settings)} settings, "
         f"source references, cache invariants and CI version labels passed."

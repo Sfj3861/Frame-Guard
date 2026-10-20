@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate mod metadata
         shell: bash
@@ -53,7 +53,7 @@ jobs:
 
       - name: Build .geode package
         id: build
-        uses: geode-sdk/build-geode-mod@main
+        uses: geode-sdk/build-geode-mod@a0f7676e6fcd1a584f6d0c1c800239008412defc # pinned main snapshot
         with:
           path: geode-android
           target: Android64
@@ -90,7 +90,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload .geode package and checksum
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Frame-Guard-Android64-v0.13.10
           path: |
@@ -100,7 +100,7 @@ jobs:
           retention-days: 14
 
       - name: Publish test build download
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: frame-guard-build-${{ github.run_number }}
           name: Frame-Guard Android64 build ${{ github.run_number }}
