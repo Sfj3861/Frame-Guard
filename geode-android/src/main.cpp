@@ -12,6 +12,7 @@
 #include <functional>
 #include <vector>
 #include <limits>
+#include <utility>
 
 using namespace geode::prelude;
 
@@ -422,6 +423,24 @@ namespace {
             const auto currentRect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
             const float halfWidth = std::max(2.0f, currentRect.size.width * 0.5f);
             const float halfHeight = std::max(2.0f, currentRect.size.height * 0.5f);
+            // Cache only collision geometry inside the predicted horizontal span.
+            // The previous implementation tested every level object at every one of
+            // the 120 prediction steps, multiplying work on long/high-object-count levels.
+            std::vector<std::pair<GameObject*, cocos2d::CCRect>> nearbyObjects;
+            nearbyObjects.reserve(std::min<std::size_t>(m_collisionObjects.size(), 128));
+            const float predictedEndX = x + static_cast<float>(xVelocity * step * iterations);
+            const float queryMinX = std::min(x, predictedEndX) - halfWidth - 64.f;
+            const float queryMaxX = std::max(x, predictedEndX) + halfWidth + 64.f;
+            for (auto* object : m_collisionObjects) {
+                if (!object || !typeIs(object, {
+                    GameObjectType::Hazard, GameObjectType::AnimatedHazard,
+                    GameObjectType::Solid, GameObjectType::Slope
+                })) continue;
+                const auto rect = collisionRect(object);
+                if (rect.getMaxX() < queryMinX || rect.getMinX() > queryMaxX) continue;
+                nearbyObjects.emplace_back(object, rect);
+            }
+
             cocos2d::CCPoint previous = ccp(x, y);
 
             for (int i = 1; i <= iterations; ++i) {
@@ -447,12 +466,8 @@ namespace {
                     x - halfWidth - safetyPad, y - halfHeight - safetyPad,
                     halfWidth * 2.f + safetyPad * 2.f, halfHeight * 2.f + safetyPad * 2.f);
                 bool unsafe = false;
-                for (auto* object : m_collisionObjects) {
-                    if (!object || !typeIs(object, {
-                        GameObjectType::Hazard, GameObjectType::AnimatedHazard,
-                        GameObjectType::Solid, GameObjectType::Slope
-                    })) continue;
-                    if (projectedBox.intersectsRect(collisionRect(object))) {
+                for (auto const& candidate : nearbyObjects) {
+                    if (projectedBox.intersectsRect(candidate.second)) {
                         unsafe = true;
                         break;
                     }
