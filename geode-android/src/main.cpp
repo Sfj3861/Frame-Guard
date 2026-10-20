@@ -139,7 +139,12 @@ namespace {
             return true;
         }
 
-        void resetTrail() {}
+        void resetTrail() {
+            m_trail1.clear();
+            m_trail2.clear();
+            m_collisionObjects.clear();
+            m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
+        }
 
         void refresh(PlayLayer* layer) {
             if (!layer || !m_draw) return;
@@ -190,15 +195,26 @@ namespace {
                 }
             }
 
-            // Project a short future path from the current velocity and held input.
-            // This is a lightweight approximation: it does not execute the game's
-            // collision/trigger system, so portals and future contacts are not predicted.
+            // Record the actual post-physics player collision geometry each update.
+            // This trail follows the real player transforms; the forward projection
+            // remains a separate estimate because future triggers/contacts cannot be
+            // reproduced reliably without running the game's own simulation.
             if (showTrajectory && layer->m_player1) {
+                captureTrail(layer->m_player1, m_trail1);
+                drawTrail(m_trail1, cocos2d::ccc4f(0.10f, 0.82f, 1.0f, 1.0f));
                 drawPrediction(layer->m_player1, FrameGuardTelemetry::isHeld(false),
                     cocos2d::ccc4f(0.10f, 0.82f, 1.0f, 1.0f));
-                if (layer->m_player2 && layer->m_player2->isRunning())
+                if (layer->m_player2 && layer->m_player2->isRunning()) {
+                    captureTrail(layer->m_player2, m_trail2);
+                    drawTrail(m_trail2, cocos2d::ccc4f(1.0f, 0.45f, 0.10f, 1.0f));
                     drawPrediction(layer->m_player2, FrameGuardTelemetry::isHeld(true),
                         cocos2d::ccc4f(1.0f, 0.45f, 0.10f, 1.0f));
+                } else {
+                    m_trail2.clear();
+                }
+            } else {
+                m_trail1.clear();
+                m_trail2.clear();
             }
 
             if (showPlayerBounds || showHitboxes) {
@@ -655,6 +671,8 @@ namespace {
         cocos2d::CCDrawNode* m_draw = nullptr;
         cocos2d::CCLabelBMFont* m_windowLabel1 = nullptr;
         cocos2d::CCLabelBMFont* m_windowLabel2 = nullptr;
+        std::deque<PlayerSnapshot> m_trail1;
+        std::deque<PlayerSnapshot> m_trail2;
         std::vector<GameObject*> m_collisionObjects;
         unsigned int m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
     };
@@ -1049,8 +1067,11 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
     };
 
     void postUpdate(float dt) {
-        PlayLayer::postUpdate(dt);
+        // Advance the game-update counter before forwarding the hook so input edges
+        // observed during this update are attributed to the current update, not the
+        // previous one.
         FrameGuardTelemetry::nextFrame();
+        PlayLayer::postUpdate(dt);
         if (!m_fields->overlay) {
             m_fields->overlay = FrameGuardOverlay::create();
             // Match QOLMod's layer placement: render in the game-layer coordinate
@@ -1078,7 +1099,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard v0.13.1 loaded: optimized visible hitboxes, local trajectory collision cache, input telemetry and FPS. Inputs are never delayed or automated.");
+    log::info("Frame-Guard v0.14.0 loaded: live collision geometry, actual player-box history, local trajectory collision cache and update/input telemetry. Inputs are never delayed or automated; forward trajectory remains an estimate.");
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
