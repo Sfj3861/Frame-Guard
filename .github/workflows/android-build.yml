@@ -1,14 +1,8 @@
-name: Build Frame-Guard Android prototype
+# Legacy manual-only build. Automatic CI and prereleases are handled by build-android-geode.yml.
+name: Legacy Frame-Guard Android prototype build
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "geode-android/**"
-      - ".github/workflows/android-build.yml"
-
-permissions:
-  contents: read
 
 jobs:
   android64:
