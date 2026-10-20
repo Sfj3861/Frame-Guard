@@ -132,9 +132,8 @@ namespace {
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
             const int marginTicks = std::clamp(Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
 
-            if (showHitboxes && layer->m_objects) {
-                // Rebuild the collision list only when the level's object count changes.
-                // Most frames avoid a full type-filter pass over decorative objects.
+            if ((showHitboxes || showTrajectory) && layer->m_objects) {
+                // Build the collision cache for both drawing and path-safety checks.
                 const auto count = layer->m_objects->count();
                 if (count != m_cachedObjectCount) {
                     m_collisionObjects.clear();
@@ -146,12 +145,14 @@ namespace {
                     }
                     m_cachedObjectCount = count;
                 }
-                for (auto* object : m_collisionObjects) {
-                    if (!object) continue;
-                    const auto rect = collisionRect(object);
-                    if (object->m_objectRadius > 0.f ||
-                        (rect.size.width > 0.f && rect.size.height > 0.f))
-                        drawObjectGeometry(object);
+                if (showHitboxes) {
+                    for (auto* object : m_collisionObjects) {
+                        if (!object) continue;
+                        const auto rect = collisionRect(object);
+                        if (object->m_objectRadius > 0.f ||
+                            (rect.size.width > 0.f && rect.size.height > 0.f))
+                            drawObjectGeometry(object);
+                    }
                 }
             }
 
@@ -323,7 +324,26 @@ namespace {
                 x += static_cast<float>(xVelocity * step);
                 y += static_cast<float>(yVelocity * step);
                 const auto current = ccp(x, y);
-                auto segmentColour = colour;
+                const int marginTicks = std::clamp(
+                    Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
+                const float safetyPad = static_cast<float>(marginTicks) * 1.25f;
+                cocos2d::CCRect projectedBox(
+                    x - halfWidth - safetyPad, y - halfHeight - safetyPad,
+                    halfWidth * 2.f + safetyPad * 2.f, halfHeight * 2.f + safetyPad * 2.f);
+                bool unsafe = false;
+                for (auto* object : m_collisionObjects) {
+                    if (!object || !typeIs(object, {
+                        GameObjectType::Hazard, GameObjectType::AnimatedHazard,
+                        GameObjectType::Solid, GameObjectType::Slope
+                    })) continue;
+                    if (projectedBox.intersectsRect(collisionRect(object))) {
+                        unsafe = true;
+                        break;
+                    }
+                }
+                auto segmentColour = unsafe
+                    ? cocos2d::ccc4f(1.f, 0.12f, 0.12f, colour.a)
+                    : colour;
                 segmentColour.a = 0.72f * (1.0f - static_cast<float>(i) /
                     static_cast<float>(iterations) * 0.55f);
                 m_draw->drawSegment(previous, current, 1.15f, segmentColour);
@@ -341,7 +361,7 @@ namespace {
                         0.65f, boxColour, cocos2d::BorderAlignment::Inside);
                 }
 
-                if (x > position.x + 900.f || y < -200.f || y > 1400.f) break;
+                if (unsafe || x > position.x + 900.f || y < -200.f || y > 1400.f) break;
             }
         }
 
@@ -717,7 +737,7 @@ namespace {
                 static_cast<cocos2d::CCLabelBMFont*>(m_guardButton->getLabel())->setString(
                     toggleText("FrameGuard", Mod::get()->getSettingValue<bool>("frameguard-enabled")).c_str());
             if (m_guardLabel)
-                m_guardLabel->setVisible(Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
+                m_guardLabel->setVisible(showInfo && Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
         }
 
         void updateFrameGuardHUD(float dt) {
