@@ -21,15 +21,6 @@ namespace {
 
     class FrameGuardOverlay;
     static FrameGuardOverlay* g_activeOverlay = nullptr;
-    static bool g_replayingGuardInput = false;
-    struct PendingGuardInput {
-        PlayerObject* player = nullptr;
-        PlayerButton button = PlayerButton::Jump;
-        int age = 0;
-        int maxTicks = 1;
-        bool releaseRequested = false;
-    };
-    static std::deque<PendingGuardInput> g_pendingGuardInputs;
 
     std::string toggleText(char const* name, bool value) {
         return fmt::format("{}: {}", name, value ? "ON" : "OFF");
@@ -128,6 +119,20 @@ namespace {
             m_draw = cocos2d::CCDrawNode::create();
             if (!m_draw) return false;
             this->addChild(m_draw);
+            m_windowLabel1 = cocos2d::CCLabelBMFont::create("PREDICTION: --", "bigFont.fnt");
+            m_windowLabel2 = cocos2d::CCLabelBMFont::create("PREDICTION: --", "bigFont.fnt");
+            if (m_windowLabel1) {
+                m_windowLabel1->setScale(0.34f);
+                m_windowLabel1->setAnchorPoint(ccp(0.5f, 0.f));
+                m_windowLabel1->setVisible(false);
+                this->addChild(m_windowLabel1, 3);
+            }
+            if (m_windowLabel2) {
+                m_windowLabel2->setScale(0.34f);
+                m_windowLabel2->setAnchorPoint(ccp(0.5f, 0.f));
+                m_windowLabel2->setVisible(false);
+                this->addChild(m_windowLabel2, 3);
+            }
             this->setPosition(cocos2d::CCPointZero);
             this->setID("frame-guard-overlay");
             g_activeOverlay = this;
@@ -146,9 +151,9 @@ namespace {
             const bool showPlayerBounds = Mod::get()->getSettingValue<bool>("show-player-bounds");
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
             const int marginTicks = std::clamp(Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
+            const bool showSafeWindow = Mod::get()->getSettingValue<bool>("show-safe-window");
 
-            const bool inputGuardEnabled = Mod::get()->getSettingValue<bool>("input-guard-enabled");
-            if ((showHitboxes || showTrajectory || inputGuardEnabled) && layer->m_objects) {
+            if ((showHitboxes || showTrajectory || showSafeWindow) && layer->m_objects) {
                 // Build the collision cache for both drawing and path-safety checks.
                 const auto count = layer->m_objects->count();
                 if (count != m_cachedObjectCount) {
@@ -188,6 +193,30 @@ namespace {
                 if (layer->m_player2 && layer->m_player2->isRunning())
                     drawPlayerGeometry(layer->m_player2);
             }
+
+            updatePredictionLabels(layer, showSafeWindow, marginTicks);
+        }
+
+        void updatePredictionLabels(PlayLayer* layer, bool enabled, int horizon) {
+            auto updateOne = [&](PlayerObject* player, cocos2d::CCLabelBMFont* label) {
+                if (!label) return;
+                if (!enabled || !player || player->m_isDead) {
+                    label->setVisible(false);
+                    return;
+                }
+                label->setVisible(true);
+                const int offset = findSafeInputOffset(player, std::max(1, horizon));
+                std::string message;
+                if (offset < 0) message = "PREDICTION: UNKNOWN";
+                else if (offset == 0) message = "PREDICTION: CLEAR NOW";
+                else message = fmt::format("PREDICTION: +{} TICKS", offset);
+                label->setString(message.c_str());
+                auto pos = player->getPosition();
+                label->setPosition(ccp(pos.x, pos.y + 30.f));
+            };
+            updateOne(layer->m_player1, m_windowLabel1);
+            updateOne(layer->m_player2 && layer->m_player2->isRunning() ? layer->m_player2 : nullptr,
+                m_windowLabel2);
         }
 
         // Conservative, approximate collision-window query. It predicts the player's
@@ -555,6 +584,8 @@ namespace {
         }
 
         cocos2d::CCDrawNode* m_draw = nullptr;
+        cocos2d::CCLabelBMFont* m_windowLabel1 = nullptr;
+        cocos2d::CCLabelBMFont* m_windowLabel2 = nullptr;
         std::vector<GameObject*> m_collisionObjects;
         unsigned int m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
     };
@@ -695,7 +726,7 @@ namespace {
             m_guardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFrameGuard));
             m_exportButton = makeItem("Export CSV", menu_selector(FrameGuardMenu::onExportCSV));
             m_infoButton = makeItem("", menu_selector(FrameGuardMenu::onToggleInfo));
-            m_inputGuardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleInputGuard));
+            m_inputGuardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleSafeWindow));
             m_opacitySlider = FrameGuardSlider::create("Opacity", "%", 0, 100,
                 Mod::get()->getSettingValue<int>("overlay-opacity"), [](int value) {
                     Mod::get()->setSettingValue<int>("overlay-opacity", value);
@@ -830,7 +861,7 @@ namespace {
                     toggleText("Info text", showInfo).c_str());
             if (m_inputGuardButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_inputGuardButton->getLabel())->setString(
-                    toggleText("Input guard", Mod::get()->getSettingValue<bool>("input-guard-enabled")).c_str());
+                    toggleText("Path preview", Mod::get()->getSettingValue<bool>("show-safe-window")).c_str());
             if (m_opacitySlider) m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
             if (m_marginSlider) m_marginSlider->setValue(Mod::get()->getSettingValue<int>("safe-margin-ticks"));
             if (m_guardButton)
@@ -873,10 +904,9 @@ namespace {
             return cocos2d::CCMenuItemLabel::create(label, this, callback);
         }
         void onToggleMenu(cocos2d::CCObject*) { toggleMenu(); }
-        void onToggleInputGuard(cocos2d::CCObject*) {
-            const bool enabled = Mod::get()->getSettingValue<bool>("input-guard-enabled");
-            Mod::get()->setSettingValue<bool>("input-guard-enabled", !enabled);
-            if (enabled) g_pendingGuardInputs.clear();
+        void onToggleSafeWindow(cocos2d::CCObject*) {
+            Mod::get()->setSettingValue<bool>("show-safe-window",
+                !Mod::get()->getSettingValue<bool>("show-safe-window"));
             syncLabels();
         }
         void onToggleInfo(cocos2d::CCObject*) {
@@ -960,29 +990,6 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
                 this->insertBefore(m_fields->overlay, m_uiLayer);
         }
         if (m_fields->overlay) m_fields->overlay->refresh(this);
-        // Deliver queued inputs only after the collision cache has been refreshed.
-        for (auto it = g_pendingGuardInputs.begin(); it != g_pendingGuardInputs.end();) {
-            auto* player = it->player;
-            if (!player || player->m_isDead) {
-                it = g_pendingGuardInputs.erase(it);
-                continue;
-            }
-            int offset = g_activeOverlay
-                ? g_activeOverlay->findSafeInputOffset(player, std::max(1, it->maxTicks - it->age))
-                : -1;
-            if (offset <= 0 || it->age >= it->maxTicks) {
-                const auto button = it->button;
-                const bool releaseAfterDelivery = it->releaseRequested;
-                it = g_pendingGuardInputs.erase(it);
-                g_replayingGuardInput = true;
-                player->pushButton(button);
-                if (releaseAfterDelivery) player->releaseButton(button);
-                g_replayingGuardInput = false;
-            } else {
-                ++it->age;
-                ++it;
-            }
-        }
         if (!m_fields->menu && m_uiLayer) {
             m_fields->menu = FrameGuardMenu::create();
             if (m_fields->menu) m_uiLayer->addChild(m_fields->menu, kOverlayZ);
@@ -997,32 +1004,17 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
     void resetLevel() {
         if (m_fields->overlay) m_fields->overlay->resetTrail();
         FrameGuardTelemetry::reset();
-        g_pendingGuardInputs.clear();
         PlayLayer::resetLevel();
     }
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard loaded: collision geometry, player hitboxes, trail, FPS and in-game controls.");
+    log::info("Frame-Guard v0.12.0 loaded: visual collision geometry, approximate path forecast, input telemetry, FPS and in-game controls. Inputs are never delayed or automated.");
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
     bool pushButton(PlayerButton button) {
-        if (!g_replayingGuardInput && button == PlayerButton::Jump &&
-            Mod::get()->getSettingValue<bool>("input-guard-enabled") && g_activeOverlay) {
-            const int horizon = std::clamp(
-                Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
-            if (horizon > 0) {
-                const int offset = g_activeOverlay->findSafeInputOffset(this, horizon);
-                // If the current tick is unsafe but a candidate exists in the configured
-                // window, retain the press briefly. Unknown/no-safe-window falls back now.
-                if (offset > 0) {
-                    g_pendingGuardInputs.push_back(PendingGuardInput{this, button, 0, horizon, false});
-                    return false;
-                }
-            }
-        }
-        bool result = PlayerObject::pushButton(button);
+        const bool result = PlayerObject::pushButton(button);
         if (button == PlayerButton::Jump)
             FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, true);
         FrameGuardTelemetry::record(button, true);
@@ -1030,16 +1022,7 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
     }
 
     bool releaseButton(PlayerButton button) {
-        // Preserve a quick tap: if its press is queued, queue the release edge too.
-        auto pending = std::find_if(g_pendingGuardInputs.begin(), g_pendingGuardInputs.end(),
-            [this, button](PendingGuardInput const& item) {
-                return item.player == this && item.button == button;
-            });
-        if (pending != g_pendingGuardInputs.end()) {
-            pending->releaseRequested = true;
-            return false;
-        }
-        bool result = PlayerObject::releaseButton(button);
+        const bool result = PlayerObject::releaseButton(button);
         if (button == PlayerButton::Jump)
             FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
         FrameGuardTelemetry::record(button, false);
