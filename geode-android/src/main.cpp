@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <fstream>
 #include <vector>
 
 using namespace geode::prelude;
@@ -61,6 +62,18 @@ namespace {
             if (lastButton < 0) return fmt::format("FrameGuard ON | frame {} | inputs 0", frame);
             return fmt::format("FrameGuard ON | frame {} | inputs {} | {} B{} @{} | delta {} us",
                 frame, inputs, lastPressed ? "PRESS" : "RELEASE", lastButton, lastFrame, deltaMicros);
+        }
+        static bool exportCSV() {
+            auto path = Mod::get()->getSaveDir() / "frameguard-inputs.csv";
+            std::ofstream out(path);
+            if (!out) return false;
+            out << "frame,timestamp_us,button,edge,delta_us\\n";
+            for (auto const& event : events) {
+                out << event.frame << "," << event.micros << "," << event.button << ","
+                    << (event.pressed ? "PRESS" : "RELEASE") << "," << event.deltaMicros << "\\n";
+            }
+            out.flush();
+            return static_cast<bool>(out);
         }
     }
 
@@ -317,7 +330,8 @@ namespace {
             m_trailButton = makeItem("", menu_selector(FrameGuardMenu::onToggleTrail));
             m_fpsButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFPS));
             m_guardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFrameGuard));
-            if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton || !m_fpsButton || !m_guardButton) return false;
+            m_exportButton = makeItem("Export CSV", menu_selector(FrameGuardMenu::onExportCSV));
+            if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton || !m_fpsButton || !m_guardButton || !m_exportButton) return false;
 
             m_openButton->setPosition(ccp(42.f, size.height - 34.f));
             m_hitboxButton->setPosition(ccp(91.f, size.height - 64.f));
@@ -325,17 +339,20 @@ namespace {
             m_trailButton->setPosition(ccp(91.f, size.height - 112.f));
             m_fpsButton->setPosition(ccp(91.f, size.height - 136.f));
             m_guardButton->setPosition(ccp(91.f, size.height - 160.f));
+            m_exportButton->setPosition(ccp(91.f, size.height - 184.f));
             m_menu->addChild(m_openButton);
             m_menu->addChild(m_hitboxButton);
             m_menu->addChild(m_playerButton);
             m_menu->addChild(m_trailButton);
             m_menu->addChild(m_fpsButton);
             m_menu->addChild(m_guardButton);
+            m_menu->addChild(m_exportButton);
             m_hitboxButton->setVisible(false);
             m_playerButton->setVisible(false);
             m_trailButton->setVisible(false);
             m_fpsButton->setVisible(false);
             m_guardButton->setVisible(false);
+            m_exportButton->setVisible(false);
 
             m_fpsLabel = cocos2d::CCLabelBMFont::create("FPS: --", "bigFont.fnt");
             if (m_fpsLabel) {
@@ -416,6 +433,7 @@ namespace {
             m_trailButton->setVisible(m_open);
             m_fpsButton->setVisible(m_open);
             m_guardButton->setVisible(m_open);
+            m_exportButton->setVisible(m_open);
             syncLabels();
         }
         void onToggleHitboxes(cocos2d::CCObject*) {
@@ -443,6 +461,16 @@ namespace {
                 !Mod::get()->getSettingValue<bool>("frameguard-enabled"));
             syncLabels();
         }
+        void onExportCSV(cocos2d::CCObject*) {
+            if (FrameGuardTelemetry::exportCSV()) {
+                log::info("FrameGuard: exported recent input events to {}",
+                    (Mod::get()->getSaveDir() / "frameguard-inputs.csv").string());
+                if (m_guardLabel) m_guardLabel->setString("FrameGuard: CSV exported (Geode mod save folder)");
+            } else {
+                log::warn("FrameGuard: failed to export input events CSV");
+                if (m_guardLabel) m_guardLabel->setString("FrameGuard: CSV export failed");
+            }
+        }
 
         cocos2d::CCMenu* m_menu = nullptr;
         cocos2d::CCMenuItemLabel* m_openButton = nullptr;
@@ -451,6 +479,7 @@ namespace {
         cocos2d::CCMenuItemLabel* m_trailButton = nullptr;
         cocos2d::CCMenuItemLabel* m_fpsButton = nullptr;
         cocos2d::CCMenuItemLabel* m_guardButton = nullptr;
+        cocos2d::CCMenuItemLabel* m_exportButton = nullptr;
         cocos2d::CCLabelBMFont* m_fpsLabel = nullptr;
         cocos2d::CCLabelBMFont* m_guardLabel = nullptr;
         float m_guardElapsed = 0.f;
