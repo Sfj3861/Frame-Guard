@@ -37,3 +37,11 @@ Hitbox rendering now checks supported gameplay object types and valid geometry, 
 ### v0.9.0 — forward trajectory preview
 
 The trajectory overlay now projects a short approximate future path for both players using current velocity and held input. It is a visual estimate only: future collisions, portals, rings, and trigger effects are not simulated. Hitboxes continue to use the game's collision rectangles/oriented boxes and omit decorative-only objects.
+
+## v0.11.0 development — bilingual controls / controles bilingües
+
+- The floating menu now exposes the existing visual toggles, FrameGuard telemetry, HUD, informational text, CSV export, overlay opacity, safety margin, language selection, and a configurable 0–200 ms input-delay budget.
+- The maximum delay budget is converted to a tick count with `floor(effectiveFPS × milliseconds / 1000)`; e.g. a 200 ms budget gives 28 ticks at 144 FPS. The HUD shows the calculated tick budget when the FPS display is enabled.
+- Settings are shared between Geode settings and the floating menu. Geode setting names/descriptions include English and Spanish; the floating menu can switch its labels between English and Spanish.
+- **Important limitation:** this commit adds the delay-budget setting and tick calculation/display only. It does **not** delay or reschedule gameplay inputs yet, and the current path predictor is still approximate. Do not treat the mod as an automatic safe-input system until the input scheduler and physics prediction are implemented and tested in Geometry Dash.
+
