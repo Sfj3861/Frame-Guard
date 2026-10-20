@@ -124,10 +124,13 @@ namespace {
         void refresh(PlayLayer* layer) {
             if (!layer || !m_draw) return;
             m_draw->clear();
+            const int opacity = std::clamp(Mod::get()->getSettingValue<int>("overlay-opacity"), 0, 100);
+            m_draw->setOpacity(static_cast<GLubyte>(opacity * 255 / 100));
 
             const bool showHitboxes = Mod::get()->getSettingValue<bool>("show-hitboxes");
             const bool showPlayerBounds = Mod::get()->getSettingValue<bool>("show-player-bounds");
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
+            const int marginTicks = std::clamp(Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
 
             if (showHitboxes && layer->m_objects) {
                 // Rebuild the collision list only when the level's object count changes.
@@ -452,6 +455,86 @@ namespace {
         unsigned int m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
     };
 
+    class FrameGuardSlider final : public cocos2d::CCNode {
+    public:
+        using ChangeCallback = std::function<void(int)>;
+        static FrameGuardSlider* create(char const* title, char const* unit, int minimum,
+            int maximum, int initial, ChangeCallback callback) {
+            auto* node = new FrameGuardSlider();
+            if (node && node->initSlider(title, unit, minimum, maximum, initial, std::move(callback))) {
+                node->autorelease();
+                return node;
+            }
+            CC_SAFE_DELETE(node);
+            return nullptr;
+        }
+        bool initSlider(char const* title, char const* unit, int minimum, int maximum,
+            int initial, ChangeCallback callback) {
+            if (!CCNode::init()) return false;
+            m_title = title;
+            m_unit = unit;
+            m_min = minimum;
+            m_max = std::max(minimum + 1, maximum);
+            m_value = std::clamp(initial, m_min, m_max);
+            m_callback = std::move(callback);
+            this->setContentSize({190.f, 34.f});
+            m_draw = cocos2d::CCDrawNode::create();
+            if (!m_draw) return false;
+            this->addChild(m_draw);
+            m_label = cocos2d::CCLabelBMFont::create("", "bigFont.fnt");
+            if (!m_label) return false;
+            m_label->setAnchorPoint(ccp(0.f, 0.5f));
+            m_label->setScale(0.34f);
+            m_label->setPosition(ccp(0.f, 27.f));
+            this->addChild(m_label);
+            auto* listener = cocos2d::EventListenerTouchOneByOne::create();
+            if (!listener) return false;
+            listener->setSwallowTouches(false);
+            listener->onTouchBegan = [this](cocos2d::CCTouch* touch, cocos2d::CCEvent*) {
+                auto p = this->convertToNodeSpace(touch->getLocation());
+                if (p.x < 0.f || p.x > 190.f || p.y < 0.f || p.y > 23.f) return false;
+                setFromX(p.x);
+                m_dragging = true;
+                return true;
+            };
+            listener->onTouchMoved = [this](cocos2d::CCTouch* touch, cocos2d::CCEvent*) {
+                if (m_dragging) setFromX(this->convertToNodeSpace(touch->getLocation()).x);
+            };
+            listener->onTouchEnded = [this](cocos2d::CCTouch*, cocos2d::CCEvent*) { m_dragging = false; };
+            listener->onTouchCancelled = [this](cocos2d::CCTouch*, cocos2d::CCEvent*) { m_dragging = false; };
+            cocos2d::CCDirector::sharedDirector()->getEventDispatcher()
+                ->addEventListenerWithSceneGraphPriority(listener, this);
+            redraw();
+            return true;
+        }
+        int getValue() const { return m_value; }
+        void setValue(int value) { m_value = std::clamp(value, m_min, m_max); redraw(); }
+    private:
+        void setFromX(float x) {
+            const float t = std::clamp((x - 6.f) / 178.f, 0.f, 1.f);
+            const int next = m_min + static_cast<int>(std::round(t * (m_max - m_min)));
+            if (next == m_value) return;
+            m_value = next;
+            redraw();
+            if (m_callback) m_callback(m_value);
+        }
+        void redraw() {
+            if (!m_draw || !m_label) return;
+            m_draw->clear();
+            const float t = static_cast<float>(m_value - m_min) / static_cast<float>(m_max - m_min);
+            m_draw->drawSegment(ccp(6.f, 10.f), ccp(184.f, 10.f), 3.f, cocos2d::ccc4f(0.22f, 0.25f, 0.31f, 0.95f));
+            m_draw->drawSegment(ccp(6.f, 10.f), ccp(6.f + 178.f * t, 10.f), 3.f, cocos2d::ccc4f(0.12f, 0.75f, 1.f, 1.f));
+            m_draw->drawCircle(ccp(6.f + 178.f * t, 10.f), 6.f, cocos2d::ccc4f(0.12f, 0.75f, 1.f, 1.f), 1.f, cocos2d::ccc4f(1.f, 1.f, 1.f, 1.f), 20);
+            m_label->setString(fmt::format("{}: {}{}", m_title, m_value, m_unit).c_str());
+        }
+        cocos2d::CCDrawNode* m_draw = nullptr;
+        cocos2d::CCLabelBMFont* m_label = nullptr;
+        ChangeCallback m_callback;
+        std::string m_title, m_unit;
+        int m_min = 0, m_max = 100, m_value = 100;
+        bool m_dragging = false;
+    };
+
     class FrameGuardMenu final : public cocos2d::CCNode {
     public:
         static FrameGuardMenu* create() {
@@ -501,7 +584,43 @@ namespace {
             m_fpsButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFPS));
             m_guardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFrameGuard));
             m_exportButton = makeItem("Export CSV", menu_selector(FrameGuardMenu::onExportCSV));
-            if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton || !m_fpsButton || !m_guardButton || !m_exportButton) return false;
+            m_infoButton = makeItem("", menu_selector(FrameGuardMenu::onToggleInfo));
+            m_opacitySlider = FrameGuardSlider::create("Opacity", "%", 0, 100,
+                Mod::get()->getSettingValue<int>("overlay-opacity"), [](int value) {
+                    Mod::get()->setSettingValue<int>("overlay-opacity", value);
+                });
+            m_marginSlider = FrameGuardSlider::create("Safe margin", " ticks", 0, 12,
+                Mod::get()->getSettingValue<int>("safe-margin-ticks"), [](int value) {
+                    Mod::get()->setSettingValue<int>("safe-margin-ticks", value);
+                });
+            if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton ||
+                !m_fpsButton || !m_guardButton || !m_exportButton || !m_infoButton ||
+                !m_opacitySlider || !m_marginSlider) return false;
+            // Drag the FG handle to reposition the whole touch menu.
+            auto* dragListener = cocos2d::EventListenerTouchOneByOne::create();
+            if (dragListener) {
+                dragListener->setSwallowTouches(false);
+                dragListener->onTouchBegan = [this, size](cocos2d::CCTouch* touch, cocos2d::CCEvent*) {
+                    auto p = this->convertToNodeSpace(touch->getLocation());
+                    if (std::abs(p.x - 42.f) > 27.f || std::abs(p.y - (size.height - 34.f)) > 27.f) return false;
+                    m_dragging = true;
+                    m_lastTouch = touch->getLocation();
+                    return true;
+                };
+                dragListener->onTouchMoved = [this, size](cocos2d::CCTouch* touch, cocos2d::CCEvent*) {
+                    if (!m_dragging) return;
+                    auto now = touch->getLocation();
+                    auto delta = now - m_lastTouch;
+                    auto pos = this->getPosition() + delta;
+                    pos.x = std::clamp(pos.x, -size.width + 40.f, size.width - 40.f);
+                    pos.y = std::clamp(pos.y, -size.height + 40.f, size.height - 40.f);
+                    this->setPosition(pos);
+                    m_lastTouch = now;
+                };
+                dragListener->onTouchEnded = [this](cocos2d::CCTouch*, cocos2d::CCEvent*) { m_dragging = false; };
+                dragListener->onTouchCancelled = [this](cocos2d::CCTouch*, cocos2d::CCEvent*) { m_dragging = false; };
+                cocos2d::CCDirector::sharedDirector()->getEventDispatcher()->addEventListenerWithSceneGraphPriority(dragListener, this);
+            }
             this->addEventListener(
                 KeybindSettingPressedEventV3(Mod::get(), "toggle-menu"),
                 [this](Keybind const&, bool down, bool repeat, double) {
@@ -516,6 +635,9 @@ namespace {
             m_fpsButton->setPosition(ccp(91.f, size.height - 136.f));
             m_guardButton->setPosition(ccp(91.f, size.height - 160.f));
             m_exportButton->setPosition(ccp(91.f, size.height - 184.f));
+            m_infoButton->setPosition(ccp(91.f, size.height - 208.f));
+            m_opacitySlider->setPosition(ccp(112.f, size.height - 242.f));
+            m_marginSlider->setPosition(ccp(112.f, size.height - 278.f));
             m_menu->addChild(m_openButton);
             m_menu->addChild(m_hitboxButton);
             m_menu->addChild(m_playerButton);
@@ -523,12 +645,18 @@ namespace {
             m_menu->addChild(m_fpsButton);
             m_menu->addChild(m_guardButton);
             m_menu->addChild(m_exportButton);
+            m_menu->addChild(m_infoButton);
+            m_menu->addChild(m_opacitySlider);
+            m_menu->addChild(m_marginSlider);
             m_hitboxButton->setVisible(false);
             m_playerButton->setVisible(false);
             m_trailButton->setVisible(false);
             m_fpsButton->setVisible(false);
             m_guardButton->setVisible(false);
             m_exportButton->setVisible(false);
+            m_infoButton->setVisible(false);
+            m_opacitySlider->setVisible(false);
+            m_marginSlider->setVisible(false);
 
             m_fpsLabel = cocos2d::CCLabelBMFont::create("FPS: --", "bigFont.fnt");
             if (m_fpsLabel) {
@@ -558,6 +686,9 @@ namespace {
             m_fpsButton->setVisible(m_open);
             m_guardButton->setVisible(m_open);
             m_exportButton->setVisible(m_open);
+            m_infoButton->setVisible(m_open);
+            m_opacitySlider->setVisible(m_open);
+            m_marginSlider->setVisible(m_open);
             syncLabels();
         }
 
@@ -574,8 +705,14 @@ namespace {
             if (m_fpsButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_fpsButton->getLabel())->setString(
                     toggleText("FPS", Mod::get()->getSettingValue<bool>("show-fps")).c_str());
-            if (m_fpsLabel)
-                m_fpsLabel->setVisible(Mod::get()->getSettingValue<bool>("show-fps"));
+            const bool showInfo = Mod::get()->getSettingValue<bool>("show-info-text");
+            if (m_fpsLabel) m_fpsLabel->setVisible(showInfo && Mod::get()->getSettingValue<bool>("show-fps"));
+            if (m_guardLabel) m_guardLabel->setVisible(showInfo && Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
+            if (m_infoButton)
+                static_cast<cocos2d::CCLabelBMFont*>(m_infoButton->getLabel())->setString(
+                    toggleText("Info text", showInfo).c_str());
+            if (m_opacitySlider) m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
+            if (m_marginSlider) m_marginSlider->setValue(Mod::get()->getSettingValue<int>("safe-margin-ticks"));
             if (m_guardButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_guardButton->getLabel())->setString(
                     toggleText("FrameGuard", Mod::get()->getSettingValue<bool>("frameguard-enabled")).c_str());
@@ -584,7 +721,8 @@ namespace {
         }
 
         void updateFrameGuardHUD(float dt) {
-            if (!m_guardLabel || !Mod::get()->getSettingValue<bool>("show-frameguard-hud")) return;
+            if (!m_guardLabel || !Mod::get()->getSettingValue<bool>("show-info-text") ||
+                !Mod::get()->getSettingValue<bool>("show-frameguard-hud")) return;
             m_guardElapsed += dt;
             if (m_guardElapsed >= 0.10f) {
                 auto text = FrameGuardTelemetry::summary();
@@ -594,7 +732,8 @@ namespace {
         }
 
         void updateFPS(float dt) {
-            if (!m_fpsLabel || !Mod::get()->getSettingValue<bool>("show-fps") || dt <= 0.f) return;
+            if (!m_fpsLabel || !Mod::get()->getSettingValue<bool>("show-info-text") ||
+                !Mod::get()->getSettingValue<bool>("show-fps") || dt <= 0.f) return;
             m_elapsed += dt;
             ++m_frames;
             if (m_elapsed >= 0.5f) {
@@ -613,8 +752,11 @@ namespace {
             label->setScale(0.48f);
             return cocos2d::CCMenuItemLabel::create(label, this, callback);
         }
-        void onToggleMenu(cocos2d::CCObject*) {
-            toggleMenu();
+        void onToggleMenu(cocos2d::CCObject*) { toggleMenu(); }
+        void onToggleInfo(cocos2d::CCObject*) {
+            Mod::get()->setSettingValue<bool>("show-info-text",
+                !Mod::get()->getSettingValue<bool>("show-info-text"));
+            syncLabels();
         }
         void onToggleHitboxes(cocos2d::CCObject*) {
             Mod::get()->setSettingValue<bool>("show-hitboxes",
@@ -660,6 +802,11 @@ namespace {
         cocos2d::CCMenuItemLabel* m_fpsButton = nullptr;
         cocos2d::CCMenuItemLabel* m_guardButton = nullptr;
         cocos2d::CCMenuItemLabel* m_exportButton = nullptr;
+        cocos2d::CCMenuItemLabel* m_infoButton = nullptr;
+        FrameGuardSlider* m_opacitySlider = nullptr;
+        FrameGuardSlider* m_marginSlider = nullptr;
+        cocos2d::CCPoint m_lastTouch = CCPointZero;
+        bool m_dragging = false;
         cocos2d::CCLabelBMFont* m_fpsLabel = nullptr;
         cocos2d::CCLabelBMFont* m_guardLabel = nullptr;
         float m_guardElapsed = 0.f;
