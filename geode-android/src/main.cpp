@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <fstream>
 #include <vector>
+#include <limits>
 
 using namespace geode::prelude;
 
@@ -129,12 +130,24 @@ namespace {
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
 
             if (showHitboxes && layer->m_objects) {
-                for (unsigned int i = 0; i < layer->m_objects->count(); ++i) {
-                    auto* object = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
-                    if (!object || !isCollisionObject(object)) continue;
+                // Rebuild the collision list only when the level's object count changes.
+                // Most frames avoid a full type-filter pass over decorative objects.
+                const auto count = layer->m_objects->count();
+                if (count != m_cachedObjectCount) {
+                    m_collisionObjects.clear();
+                    m_collisionObjects.reserve(count);
+                    for (unsigned int i = 0; i < count; ++i) {
+                        auto* object = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
+                        if (object && isCollisionObject(object))
+                            m_collisionObjects.push_back(object);
+                    }
+                    m_cachedObjectCount = count;
+                }
+                for (auto* object : m_collisionObjects) {
+                    if (!object) continue;
                     const auto rect = object->getObjectRect();
-                    const bool hasRect = rect.size.width > 0.f && rect.size.height > 0.f;
-                    if (object->m_objectRadius > 0.f || hasRect)
+                    if (object->m_objectRadius > 0.f ||
+                        (rect.size.width > 0.f && rect.size.height > 0.f))
                         drawObjectGeometry(object);
                 }
             }
@@ -190,7 +203,7 @@ namespace {
                 GameObjectType::GravityTogglePortal, GameObjectType::SpiderOrb,
                 GameObjectType::SpiderPad, GameObjectType::TeleportOrb,
                 GameObjectType::Modifier
-            }) || obj->m_isPassable;
+            });
         }
 
         static cocos2d::ccColor4F colourFor(GameObject* obj) {
@@ -336,8 +349,9 @@ namespace {
             if (obj->m_objectRadius > 0.0f) {
                 const float radius = obj->m_objectRadius *
                     std::max<float>(obj->m_scaleX, obj->m_scaleY);
+                // Fewer segments reduce tessellation cost for circular hitboxes.
                 m_draw->drawCircle(ccp(obj->m_positionX, obj->m_positionY), radius,
-                    cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f), width, colour, 64);
+                    cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f), width, colour, 24);
                 return;
             }
 
@@ -423,6 +437,8 @@ namespace {
         }
 
         cocos2d::CCDrawNode* m_draw = nullptr;
+        std::vector<GameObject*> m_collisionObjects;
+        unsigned int m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
     };
 
     class FrameGuardMenu final : public cocos2d::CCNode {
@@ -653,7 +669,9 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
         FrameGuardTelemetry::nextFrame();
         if (!m_fields->overlay) {
             m_fields->overlay = FrameGuardOverlay::create();
-            if (m_fields->overlay) this->addChild(m_fields->overlay, kOverlayZ);
+            // Draw in object-layer coordinates so hitboxes scroll with level geometry.
+            if (m_fields->overlay && m_objectLayer)
+                m_objectLayer->addChild(m_fields->overlay, kOverlayZ);
         }
         if (m_fields->overlay) m_fields->overlay->refresh(this);
         if (!m_fields->menu && m_uiLayer) {
