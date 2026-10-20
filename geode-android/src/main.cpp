@@ -238,7 +238,7 @@ namespace {
                 label->setVisible(true);
                 const int windowHorizon = std::clamp(horizon, 1, 12);
                 std::string message;
-                if (!(player->m_isDart || player->m_isShip || player->m_isSwing)) {
+                if (!(player->m_isDart || player->m_isShip || player->m_isBird || player->m_isSwing)) {
                     const int collisionTick = findHazardCollisionTick(player, windowHorizon);
                     message = collisionTick < 0
                         ? fmt::format("PATH CLEAR: {} TICKS (APPROX)", windowHorizon)
@@ -1115,7 +1115,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard v0.15.0 loaded: independent tick horizon, one-update-per-tick input-window simulation, live collision geometry and optimized trajectory checks. Inputs are never delayed or automated.");
+    log::info("Frame-Guard v0.15.1 loaded: independent tick horizon, consistent flight-mode routing, live collision geometry and optimized trajectory checks. Inputs are never delayed or automated.");
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
