@@ -45,3 +45,11 @@ The trajectory overlay now projects a short approximate future path for both pla
 - Settings are shared between Geode settings and the floating menu. Geode setting names/descriptions include English and Spanish; the floating menu can switch its labels between English and Spanish.
 - **Important limitation:** this commit adds the delay-budget setting and tick calculation/display only. It does **not** delay or reschedule gameplay inputs yet, and the current path predictor is still approximate. Do not treat the mod as an automatic safe-input system until the input scheduler and physics prediction are implemented and tested in Geometry Dash.
 
+
+
+### v0.12.0 development — opt-in predictive Jump scheduler
+
+- Added **Smart input delay / Espera inteligente** to both the Geode settings and the floating menu. It is **off by default** so the untested heuristic cannot unexpectedly change normal gameplay.
+- When enabled, the hook considers Jump press/release edges. A lightweight forward estimate checks hazards and solid geometry with the current held state versus the requested state. The input is passed through immediately unless the requested edge predicts an earlier collision and waiting appears safer; in that case the scheduler rechecks each frame and applies the edge when the estimate no longer favors waiting or the configured tick budget is exhausted.
+- The configured millisecond budget is converted using `floor(effective FPS × milliseconds / 1000)`. The scheduler only delays Jump edges, not every button or every mode-specific mechanic. It does not reproduce Geometry Dash's full physics, collision response, triggers, or portals, so its prediction can be wrong.
+- The scheduler is **not validated in-game and is not a guarantee of survival or a completion tool**. It must be compiled against Geode SDK 5.11.2 and tested on Geometry Dash Android 2.2081 before being considered usable. Keep the setting disabled if inputs feel delayed or behave unexpectedly.
