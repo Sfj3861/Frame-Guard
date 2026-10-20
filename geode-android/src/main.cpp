@@ -205,11 +205,15 @@ namespace {
                     return;
                 }
                 label->setVisible(true);
-                const int offset = findSafeInputOffset(player, std::max(1, horizon));
+                const int collisionTick = findHazardCollisionTick(player, std::max(1, horizon));
                 std::string message;
-                if (offset < 0) message = "PREDICTION: UNKNOWN";
-                else if (offset == 0) message = "PREDICTION: CLEAR NOW";
-                else message = fmt::format("PREDICTION: +{} TICKS", offset);
+                if (collisionTick < 0) {
+                    message = fmt::format("PATH CLEAR: {} TICK HORIZON", std::max(1, horizon));
+                } else {
+                    const int usableMargin = std::max(0, collisionTick - horizon);
+                    message = fmt::format("HAZARD IN {} TICKS | MARGIN {}",
+                        collisionTick, usableMargin);
+                }
                 label->setString(message.c_str());
                 auto pos = player->getPosition();
                 label->setPosition(ccp(pos.x, pos.y + 30.f));
@@ -219,11 +223,10 @@ namespace {
                 m_windowLabel2);
         }
 
-        // Conservative, approximate collision-window query. It predicts the player's
-        // near-term path using current velocity and checks actual level collision objects.
-        // It is intentionally opt-in: this is not a full clone of GD physics and cannot
-        // certify safety for every mode, trigger, portal, or input-specific impulse.
-        int findSafeInputOffset(PlayerObject* player, int horizon) const {
+        // Predict the first hazard contact along the current input trajectory.
+        // This is a lead-time estimate, NOT a guaranteed safe click window: it does not
+        // simulate input-specific impulses, future triggers, portals, or exact GD physics.
+        int findHazardCollisionTick(PlayerObject* player, int horizon) const {
             if (!player || player->m_isDead || m_collisionObjects.empty()) return -1;
             horizon = std::clamp(horizon, 1, 12);
             auto pos = player->getPosition();
@@ -239,14 +242,14 @@ namespace {
             const float hh = std::max(2.f, rect.size.height * 0.5f);
             constexpr float step = 0.5f;
 
-            auto clearAt = [&](float px, float py) {
+            auto clearOfHazards = [&](float px, float py) {
                 cocos2d::CCRect box(px - hw, py - hh, hw * 2.f, hh * 2.f);
                 for (auto* object : m_collisionObjects) {
-                    if (!object || !typeIs(object, {
-                        GameObjectType::Hazard, GameObjectType::AnimatedHazard,
-                        GameObjectType::Solid, GameObjectType::Slope
-                    })) continue;
-                    if (box.intersectsRect(collisionRect(object))) return false;
+                    if (!object) continue;
+                    const bool hazard = typeIs(object, {
+                        GameObjectType::Hazard, GameObjectType::AnimatedHazard
+                    }) || (object->m_objectType == GameObjectType::Slope && object->m_slopeIsHazard);
+                    if (hazard && box.intersectsRect(collisionRect(object))) return false;
                 }
                 return true;
             };
@@ -263,22 +266,9 @@ namespace {
                 py += static_cast<float>(dy * step);
             };
 
-            for (int offset = 0; offset < horizon; ++offset) {
-                if (clearAt(x, y)) {
-                    float tx = x, ty = y;
-                    double tvx = vx, tvy = vy;
-                    bool clearWindow = true;
-                    // Require two collision-free projected ticks around the candidate.
-                    for (int look = 0; look < 2; ++look) {
-                        advance(tx, ty, tvx, tvy);
-                        if (!clearAt(tx, ty)) {
-                            clearWindow = false;
-                            break;
-                        }
-                    }
-                    if (clearWindow) return offset;
-                }
+            for (int tick = 1; tick <= horizon; ++tick) {
                 advance(x, y, vx, vy);
+                if (!clearOfHazards(x, y)) return tick;
             }
             return -1;
         }
