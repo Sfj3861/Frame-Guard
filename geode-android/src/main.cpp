@@ -332,7 +332,7 @@ namespace {
             const auto rect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
             const float hw = std::max(2.f, rect.size.width * 0.5f);
             const float hh = std::max(2.f, rect.size.height * 0.5f);
-            constexpr float step = 0.5f;
+            constexpr float step = 1.0f
 
             for (int tick = 1; tick <= horizon; ++tick) {
                 if (player->m_isDart) vy = held ? 6.0 : -6.0;
