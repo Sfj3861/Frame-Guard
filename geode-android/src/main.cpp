@@ -19,8 +19,15 @@ namespace {
     constexpr int kOverlayZ = 9999;
     constexpr std::size_t kTrailLimit = 48;
 
-    std::string toggleText(char const* name, bool value) {
-        return fmt::format("{}: {}", name, value ? "ON" : "OFF");
+    bool spanish() { return Mod::get()->getSettingValue<bool>("ui-spanish"); }
+    char const* tr(char const* en, char const* es) { return spanish() ? es : en; }
+    std::string toggleText(char const* en, char const* es, bool value) {
+        return fmt::format("{}: {}", tr(en, es), value ? "ON" : "OFF");
+    }
+    int effectiveDelayTicks(float fps) {
+        const int milliseconds = std::clamp(Mod::get()->getSettingValue<int>("max-delay-ms"), 0, 200);
+        if (!std::isfinite(fps) || fps <= 0.f) return 0;
+        return std::max(0, static_cast<int>(std::floor(fps * milliseconds / 1000.f)));
     }
 
     namespace FrameGuardTelemetry {
@@ -613,17 +620,23 @@ namespace {
             m_guardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFrameGuard));
             m_exportButton = makeItem("Export CSV", menu_selector(FrameGuardMenu::onExportCSV));
             m_infoButton = makeItem("", menu_selector(FrameGuardMenu::onToggleInfo));
+            m_hudButton = makeItem("", menu_selector(FrameGuardMenu::onToggleHUD));
+            m_languageButton = makeItem("", menu_selector(FrameGuardMenu::onToggleLanguage));
             m_opacitySlider = FrameGuardSlider::create("Opacity", "%", 0, 100,
                 Mod::get()->getSettingValue<int>("overlay-opacity"), [](int value) {
                     Mod::get()->setSettingValue<int>("overlay-opacity", value);
                 });
-            m_marginSlider = FrameGuardSlider::create("Safe margin", " ticks", 0, 12,
+            m_marginSlider = FrameGuardSlider::create(tr("Safe margin", "Margen seguro"), " ticks", 0, 12,
                 Mod::get()->getSettingValue<int>("safe-margin-ticks"), [](int value) {
                     Mod::get()->setSettingValue<int>("safe-margin-ticks", value);
                 });
+            m_delaySlider = FrameGuardSlider::create(tr("Delay budget", "Límite de espera"), " ms", 0, 200,
+                Mod::get()->getSettingValue<int>("max-delay-ms"), [](int value) {
+                    Mod::get()->setSettingValue<int>("max-delay-ms", value);
+                });
             if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton ||
                 !m_fpsButton || !m_guardButton || !m_exportButton || !m_infoButton ||
-                !m_opacitySlider || !m_marginSlider) return false;
+                !m_opacitySlider || !m_marginSlider || !m_hudButton || !m_languageButton || !m_delaySlider) return false;
             this->addEventListener(
                 KeybindSettingPressedEventV3(Mod::get(), "toggle-menu"),
                 [this](Keybind const&, bool down, bool repeat, double) {
@@ -639,8 +652,11 @@ namespace {
             m_guardButton->setPosition(ccp(91.f, size.height - 160.f));
             m_exportButton->setPosition(ccp(91.f, size.height - 184.f));
             m_infoButton->setPosition(ccp(91.f, size.height - 208.f));
-            m_opacitySlider->setPosition(ccp(112.f, size.height - 242.f));
-            m_marginSlider->setPosition(ccp(112.f, size.height - 278.f));
+            m_hudButton->setPosition(ccp(91.f, size.height - 232.f));
+            m_languageButton->setPosition(ccp(91.f, size.height - 256.f));
+            m_opacitySlider->setPosition(ccp(112.f, size.height - 290.f));
+            m_marginSlider->setPosition(ccp(112.f, size.height - 326.f));
+            m_delaySlider->setPosition(ccp(112.f, size.height - 362.f));
             m_menu->addChild(m_openButton);
             m_menu->addChild(m_hitboxButton);
             m_menu->addChild(m_playerButton);
@@ -649,8 +665,11 @@ namespace {
             m_menu->addChild(m_guardButton);
             m_menu->addChild(m_exportButton);
             m_menu->addChild(m_infoButton);
+            m_menu->addChild(m_hudButton);
+            m_menu->addChild(m_languageButton);
             m_menu->addChild(m_opacitySlider);
             m_menu->addChild(m_marginSlider);
+            m_menu->addChild(m_delaySlider);
             m_hitboxButton->setVisible(false);
             m_playerButton->setVisible(false);
             m_trailButton->setVisible(false);
@@ -658,8 +677,11 @@ namespace {
             m_guardButton->setVisible(false);
             m_exportButton->setVisible(false);
             m_infoButton->setVisible(false);
+            m_hudButton->setVisible(false);
+            m_languageButton->setVisible(false);
             m_opacitySlider->setVisible(false);
             m_marginSlider->setVisible(false);
+            m_delaySlider->setVisible(false);
 
             m_fpsLabel = cocos2d::CCLabelBMFont::create("FPS: --", "bigFont.fnt");
             if (m_fpsLabel) {
@@ -717,35 +739,45 @@ namespace {
             m_guardButton->setVisible(m_open);
             m_exportButton->setVisible(m_open);
             m_infoButton->setVisible(m_open);
+            m_hudButton->setVisible(m_open);
+            m_languageButton->setVisible(m_open);
             m_opacitySlider->setVisible(m_open);
             m_marginSlider->setVisible(m_open);
+            m_delaySlider->setVisible(m_open);
             syncLabels();
         }
 
         void syncLabels() {
             if (m_hitboxButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_hitboxButton->getLabel())->setString(
-                    toggleText("Hitboxes", Mod::get()->getSettingValue<bool>("show-hitboxes")).c_str());
+                    toggleText("Hitboxes", "Cajas de colisión", Mod::get()->getSettingValue<bool>("show-hitboxes")).c_str());
             if (m_playerButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_playerButton->getLabel())->setString(
-                    toggleText("Player", Mod::get()->getSettingValue<bool>("show-player-bounds")).c_str());
+                    toggleText("Player bounds", "Límites del jugador", Mod::get()->getSettingValue<bool>("show-player-bounds")).c_str());
             if (m_trailButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_trailButton->getLabel())->setString(
-                    toggleText("Trajectory", Mod::get()->getSettingValue<bool>("show-trajectory")).c_str());
+                    toggleText("Trajectory", "Trayectoria", Mod::get()->getSettingValue<bool>("show-trajectory")).c_str());
             if (m_fpsButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_fpsButton->getLabel())->setString(
-                    toggleText("FPS", Mod::get()->getSettingValue<bool>("show-fps")).c_str());
+                    toggleText("FPS", "FPS", Mod::get()->getSettingValue<bool>("show-fps")).c_str());
             const bool showInfo = Mod::get()->getSettingValue<bool>("show-info-text");
             if (m_fpsLabel) m_fpsLabel->setVisible(showInfo && Mod::get()->getSettingValue<bool>("show-fps"));
             if (m_guardLabel) m_guardLabel->setVisible(showInfo && Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
             if (m_infoButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_infoButton->getLabel())->setString(
-                    toggleText("Info text", showInfo).c_str());
+                    toggleText("Info text", "Texto informativo", showInfo).c_str());
             if (m_opacitySlider) m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
             if (m_marginSlider) m_marginSlider->setValue(Mod::get()->getSettingValue<int>("safe-margin-ticks"));
+            if (m_delaySlider) m_delaySlider->setValue(Mod::get()->getSettingValue<int>("max-delay-ms"));
+            if (m_hudButton)
+                static_cast<cocos2d::CCLabelBMFont*>(m_hudButton->getLabel())->setString(
+                    toggleText("FrameGuard HUD", "HUD de FrameGuard", Mod::get()->getSettingValue<bool>("show-frameguard-hud")).c_str());
+            if (m_languageButton)
+                static_cast<cocos2d::CCLabelBMFont*>(m_languageButton->getLabel())->setString(
+                    fmt::format("{}: {}", tr("Language", "Idioma"), tr("English", "Español")).c_str());
             if (m_guardButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_guardButton->getLabel())->setString(
-                    toggleText("FrameGuard", Mod::get()->getSettingValue<bool>("frameguard-enabled")).c_str());
+                    toggleText("FrameGuard", "FrameGuard", Mod::get()->getSettingValue<bool>("frameguard-enabled")).c_str());
             if (m_guardLabel)
                 m_guardLabel->setVisible(showInfo && Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
         }
@@ -768,7 +800,7 @@ namespace {
             ++m_frames;
             if (m_elapsed >= 0.5f) {
                 const auto fps = static_cast<int>(static_cast<float>(m_frames) / m_elapsed + 0.5f);
-                auto text = fmt::format("FPS: {}", fps);
+                auto text = fmt::format("{}: {}", tr("FPS", "FPS"), fps);
                 m_fpsLabel->setString(text.c_str());
                 m_elapsed = 0.f;
                 m_frames = 0;
@@ -783,6 +815,15 @@ namespace {
             return cocos2d::CCMenuItemLabel::create(label, this, callback);
         }
         void onToggleMenu(cocos2d::CCObject*) { toggleMenu(); }
+        void onToggleLanguage(cocos2d::CCObject*) {
+            Mod::get()->setSettingValue<bool>("ui-spanish", !Mod::get()->getSettingValue<bool>("ui-spanish"));
+            syncLabels();
+        }
+        void onToggleHUD(cocos2d::CCObject*) {
+            Mod::get()->setSettingValue<bool>("show-frameguard-hud",
+                !Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
+            syncLabels();
+        }
         void onToggleInfo(cocos2d::CCObject*) {
             Mod::get()->setSettingValue<bool>("show-info-text",
                 !Mod::get()->getSettingValue<bool>("show-info-text"));
@@ -817,10 +858,10 @@ namespace {
             if (FrameGuardTelemetry::exportCSV()) {
                 log::info("FrameGuard: exported recent input events to {}",
                     (Mod::get()->getSaveDir() / "frameguard-inputs.csv").string());
-                if (m_guardLabel) m_guardLabel->setString("FrameGuard: CSV exported (Geode mod save folder)");
+                if (m_guardLabel) m_guardLabel->setString(tr("FrameGuard: CSV exported (Geode mod save folder)", "FrameGuard: CSV exportado (carpeta del mod de Geode)"));
             } else {
                 log::warn("FrameGuard: failed to export input events CSV");
-                if (m_guardLabel) m_guardLabel->setString("FrameGuard: CSV export failed");
+                if (m_guardLabel) m_guardLabel->setString(tr("FrameGuard: CSV export failed", "FrameGuard: fallo al exportar CSV"));
             }
         }
 
@@ -835,6 +876,9 @@ namespace {
         cocos2d::CCMenuItemLabel* m_infoButton = nullptr;
         FrameGuardSlider* m_opacitySlider = nullptr;
         FrameGuardSlider* m_marginSlider = nullptr;
+        FrameGuardSlider* m_delaySlider = nullptr;
+        cocos2d::CCMenuItemLabel* m_hudButton = nullptr;
+        cocos2d::CCMenuItemLabel* m_languageButton = nullptr;
         cocos2d::CCPoint m_lastTouch = CCPointZero;
         bool m_dragging = false;
         cocos2d::CCLabelBMFont* m_fpsLabel = nullptr;
