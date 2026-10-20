@@ -1037,8 +1037,10 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
                 FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, true);
                 FrameGuardTelemetry::record(button, true);
             };
-            g_pendingInputs.push_back(std::move(pending));
-            return true;
+            if (shouldWaitForInput(g_activePlayLayer, pending)) {
+                g_pendingInputs.push_back(std::move(pending));
+                return true;
+            }
         }
         bool result = PlayerObject::pushButton(button);
         if (button == PlayerButton::Jump) FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, true);
@@ -1061,8 +1063,10 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
                 FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
                 FrameGuardTelemetry::record(button, false);
             };
-            g_pendingInputs.push_back(std::move(pending));
-            return true;
+            if (shouldWaitForInput(g_activePlayLayer, pending)) {
+                g_pendingInputs.push_back(std::move(pending));
+                return true;
+            }
         }
         bool result = PlayerObject::releaseButton(button);
         if (button == PlayerButton::Jump) FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
