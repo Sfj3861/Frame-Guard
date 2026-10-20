@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.5.0",
+  "version": "v0.6.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with object and player bounds, observed trail, FPS counter, and synced in-game/settings controls.",
+  "description": "Frame-Guard Android diagnostics: collision overlays, player bounds, movement trail, FPS and frame/input timestamp telemetry.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
@@ -32,6 +32,18 @@
       "type": "bool",
       "default": false,
       "description": "Show a lightweight FPS estimate based on PlayLayer update delta time."
+    },
+    "frameguard-enabled": {
+      "name": "Enable FrameGuard telemetry",
+      "type": "bool",
+      "default": true,
+      "description": "Record input press/release edges with monotonic timestamps and current level-update frame. Does not alter gameplay."
+    },
+    "show-frameguard-hud": {
+      "name": "Show FrameGuard HUD",
+      "type": "bool",
+      "default": true,
+      "description": "Display frame counter, input count, and last input timing on screen."
     }
   }
 }
