@@ -6,7 +6,9 @@ on:
     branches:
       - main
     paths:
-      - "geode-android/**"
+      - "geode-android/src/**"
+      - "geode-android/mod.json"
+      - "geode-android/CMakeLists.txt"
       - ".github/workflows/build-android-geode.yml"
 
 permissions:
