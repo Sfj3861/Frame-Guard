@@ -87,6 +87,12 @@
       "min": 0,
       "max": 200,
       "description": "Configurable time budget in milliseconds. The corresponding tick count is rounded down using effective FPS. This setting does not delay inputs yet. / Límite temporal configurable en milisegundos. Los ticks correspondientes se redondean hacia abajo según los FPS efectivos. Este ajuste todavía no retrasa las entradas."
+    },
+    "input-scheduler-enabled": {
+      "name": "Smart input delay / Espera inteligente de entrada",
+      "type": "bool",
+      "default": false,
+      "description": "Opt-in heuristic for Jump press/release edges using a lightweight collision estimate and the configured FPS-derived tick budget. Approximate; validate in-game. / Heurística opcional para pulsaciones y liberaciones de salto usando una estimación sencilla de colisiones y el límite de ticks calculado según FPS. Es aproximada; validar dentro del juego."
     }
   }
 }
