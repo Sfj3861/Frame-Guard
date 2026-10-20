@@ -5,27 +5,27 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.7.0",
+  "version": "v0.8.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with collision-geometry filtering, translucent floating control, F keybind, player bounds, trail, FPS, and input timing telemetry.",
+  "description": "Frame-Guard Android overlay with collision-aware hitboxes, player collision bounds, fading player hitbox trajectory trail, translucent floating control, FPS, and input timing telemetry.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
       "type": "bool",
       "default": true,
-      "description": "Draw outlines only for objects with collision geometry initialized by the game; decorative objects without hitboxes are omitted."
+      "description": "Draw collision outlines for supported gameplay objects, including oriented boxes, circles, slopes, portals, pads, and rings; decorative objects are filtered out."
     },
     "show-trajectory": {
       "name": "Show trajectory",
       "type": "bool",
       "default": true,
-      "description": "Show a short, fading trail of recent player positions."
+      "description": "Draw a fading trail of recent player collision-box snapshots for player 1 and player 2. This is a historical hitbox trail, not a future physics prediction."
     },
     "show-player-bounds": {
       "name": "Show player bounds",
       "type": "bool",
       "default": true,
-      "description": "Show Geometry Dash's object-rect bounds for player 1 and player 2."
+      "description": "Show the current player collision boxes for player 1 and player 2."
     },
     "show-fps": {
       "name": "Show FPS counter",
