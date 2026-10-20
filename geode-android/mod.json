@@ -5,21 +5,21 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.13.0",
+  "version": "v0.13.1",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with collision geometry, approximate trajectory projection, input telemetry and an experimental continuous-input timing-window estimate. Never delays or automates inputs.",
+  "description": "Frame-Guard Android overlay with camera-local collision rendering, optimized trajectory collision checks, input telemetry and experimental timing estimates. Trajectory remains an approximation and never delays or automates inputs.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
       "type": "bool",
       "default": true,
-      "description": "Draw collision outlines for supported gameplay objects, including oriented boxes, circles, slopes, portals, pads, and rings; decorative objects are filtered out."
+      "description": "Draw collision geometry near the active play area to reduce rendering overhead on long levels."
     },
     "show-trajectory": {
       "name": "Show trajectory",
       "type": "bool",
       "default": true,
-      "description": "Project an approximate future path from current velocity and held input; future collisions and triggers are not simulated."
+      "description": "Draw an approximate projected path with local collision checks. Rendering is optimized around the active player; future triggers and exact game physics are not fully simulated."
     },
     "show-player-bounds": {
       "name": "Show player bounds",
