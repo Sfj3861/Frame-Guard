@@ -118,7 +118,7 @@ namespace {
             return true;
         }
 
-        void resetTrail() { m_trail1.clear(); m_trail2.clear(); }
+        void resetTrail() {}
 
         void refresh(PlayLayer* layer) {
             if (!layer || !m_draw) return;
