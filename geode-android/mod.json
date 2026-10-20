@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.14.0",
+  "version": "v0.14.1",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with live player collision geometry, an observed player-box trail, optimized hitbox rendering, input telemetry and an estimated forward trajectory. The observed trail follows actual game updates; future prediction is not guaranteed exact because game triggers and collision resolution are not replayed.",
+  "description": "Frame-Guard Android overlay with live player collision geometry, an observed player-box trail, optimized rectangle-based hitbox culling, input telemetry and an eight-step forward trajectory estimate. The observed trail follows actual game updates; future prediction is not guaranteed exact because game triggers and collision resolution are not replayed.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
@@ -19,7 +19,7 @@
       "name": "Show trajectory",
       "type": "bool",
       "default": true,
-      "description": "Show the player's observed collision-box trail from actual game updates plus a forward trajectory estimate. The observed trail tracks the real player; the future projection cannot perfectly reproduce all triggers, portals or collision resolution."
+      "description": "Show the player's observed collision-box trail from actual game updates plus an eight-step forward trajectory estimate. The observed trail tracks the real player; the future projection cannot perfectly reproduce all triggers, portals or collision resolution."
     },
     "show-player-bounds": {
       "name": "Show player bounds",
