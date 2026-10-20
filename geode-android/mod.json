@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.14.1",
+  "version": "v0.15.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with live player collision geometry, an observed player-box trail, optimized rectangle-based hitbox culling, input telemetry and an eight-step forward trajectory estimate. The observed trail follows actual game updates; future prediction is not guaranteed exact because game triggers and collision resolution are not replayed.",
+  "description": "Frame-Guard Android overlay with live player collision geometry, an observed player-box trail, optimized rectangle-based hitbox culling, input telemetry, independently configurable tick horizon and an eight-step forward trajectory estimate. Input-window simulation now advances one modeled update per tick and separates forecast horizon from visual hitbox margin; prediction remains approximate because game triggers and collision resolution are not replayed.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
@@ -60,12 +60,20 @@
       "description": "Opacity of hitboxes and trajectory, from transparent to fully visible."
     },
     "safe-margin-ticks": {
-      "name": "Prediction horizon ticks",
+      "name": "Safe margin ticks",
       "type": "int",
-      "default": 3,
+      "default": 2,
       "min": 0,
       "max": 12,
-      "description": "Forward prediction horizon in simulated update steps (1-12). Hazard warnings use an approximate physics model and are not guaranteed safe windows."
+      "description": "Extra visual padding around projected hitboxes. This only changes how cautiously the trajectory overlay marks nearby hazards; it does not change the forecast duration."
+    },
+    "prediction-horizon-ticks": {
+      "name": "Prediction horizon ticks",
+      "type": "int",
+      "default": 6,
+      "min": 1,
+      "max": 12,
+      "description": "Number of simulated game-update steps used by the tick timing estimate and hazard warning. Each tick represents one modeled update; future physics remain approximate."
     },
     "toggle-menu": {
       "name": "Toggle Frame-Guard menu",
