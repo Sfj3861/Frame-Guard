@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.13.3",
+  "version": "v0.13.4",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with camera-aligned collision diagnostics, optimized approximate trajectory preview, independent player bounds control, fully bilingual floating menu, input telemetry export, and an opt-in experimental Jump scheduler.",
+  "description": "Frame-Guard Android overlay with viewport-culled hitbox diagnostics, optimized approximate trajectory preview, bilingual controls, telemetry export, and an opt-in experimental Jump scheduler.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes / Mostrar cajas de colisión",
