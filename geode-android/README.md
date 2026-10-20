@@ -1,55 +1,64 @@
-# Frame-Guard — Geode for Android
+# Frame-Guard — Geode para Android
 
-Target: Geometry Dash Android 2.2081, Geode SDK 5.11.2, Android 64-bit.
+**Objetivo:** Geometry Dash Android 2.2081 · Geode SDK 5.11.2 · Android 64 bits.  
+**Versión de desarrollo:** v0.13.0.
 
-## v0.8.0
+Frame-Guard es una superposición de diagnóstico. Dibuja geometría estimada de colisión, límites del jugador y una trayectoria futura aproximada, y registra eventos de entrada para ayudar a analizar el comportamiento del juego.
 
-- **FrameGuard telemetry:** counts PlayLayer update frames and records each player input press/release with a monotonic timestamp, button index, frame index, and time since the preceding input.
-- **Rolling event window:** retains the latest 16 input events in memory for timing diagnostics.
-- **FrameGuard HUD:** displays current frame, input count, and the most recent input timing. Enable or disable it from Geode settings.
-- **Floating menu:** a translucent circular FG control sits at the upper-left. Tap it or press **F** on a connected keyboard to open/close the menu. The F binding is configurable in Geode settings.
-- **Show Hitboxes:** draws supported gameplay collision geometry for hazards, solids, slopes, portals, pads, rings, and interactables. Decorative-only objects are filtered out; circles, slope triangles, and rotated boxes are rendered separately. It is a visual diagnostic, not the engine's collision test.
-- **Player hitboxes:** draws the current player collision bounds and oriented box.
-- **Show Trajectory:** a fading trail of historical player collision-box snapshots, including the smaller box, for both players when active. This implementation shows the observed hitbox trail; it does not simulate future physics or predict collisions.
-- **FPS diagnostic:** optional estimate based on PlayLayer update delta time.
-- **Settings sync:** in-game menu toggles and Geode settings use the same settings values. The F keybind defaults to `F` and is configurable.
-- **Non-invasive:** FrameGuard records and displays information only. It does not suppress deaths, alter collisions, change physics, automate inputs, or modify completion state.
+## Funciones
 
-## Installation
+- **Hitboxes de objetos:** contornos para peligros, sólidos, pendientes y una selección de objetos interactivos. Los objetos decorativos se filtran; la lista de tipos compatibles no equivale a la lógica interna de colisión del juego.
+- **Alineación con la capa del nivel:** la superposición se añade a la capa de objetos para compartir sus transformaciones de cámara/scroll en vez de dibujarse como una capa independiente de la escena.
+- **Límites del jugador:** muestra el rectángulo actual, la caja orientada cuando está disponible y una caja interior aproximada.
+- **Trayectoria aproximada:** proyecta hasta 120 pasos con la velocidad y el estado actual de entrada. Colorea en rojo una sección cuando su caja proyectada intersecta geometría compatible. No ejecuta la física completa ni simula portales, triggers, colisiones futuras o cambios de modo.
+- **HUD de FrameGuard:** muestra el número de frame y estadísticas del último evento de entrada.
+- **Contador de FPS:** estimación a partir del tiempo entre actualizaciones; también muestra el presupuesto de ticks correspondiente al límite de espera configurado.
+- **Menú flotante bilingüe:** controles en inglés o español para activar/desactivar hitboxes, límites del jugador, trayectoria, HUD, información, FPS y el planificador experimental.
+- **Ajustes visuales:** opacidad y margen visual de seguridad ajustables.
+- **Telemetría CSV:** exporta los últimos 16 eventos de entrada a la carpeta de guardado del mod de Geode.
+- **Atajo de teclado:** la tecla F abre/cierra el menú de forma predeterminada; se puede cambiar en los ajustes de Geode.
+- **Planificador experimental de salto:** opción desactivada por defecto que puede aplazar eventos de pulsación/liberación de salto según una estimación simplificada de colisión. El límite de espera se configura entre 0 y 200 ms.
 
-Install the generated .geode package with Geode for Android 64-bit. Remove/replace the previous Frame-Guard version when updating.
+## Limitaciones importantes
 
-## Build from source
+- **No está validado en partida.** Que el proyecto compile o que el paquete pase las comprobaciones de archivo no demuestra que el mod funcione correctamente en el dispositivo.
+- La trayectoria es una aproximación visual, no una reproducción del motor de física de Geometry Dash ni una garantía de que una ruta sea segura.
+- El planificador de salto es experimental, puede cambiar el momento de entrada y puede equivocarse. Déjalo desactivado si causa entradas inesperadas; está desactivado por defecto.
+- Las hitboxes mostradas son diagnósticas y pueden no coincidir con todos los casos especiales del motor.
+- El menú y las capas deben comprobarse en el dispositivo real, incluidas resolución, zoom, scroll, dual, portales y cambios de modo.
+- Frame-Guard no debe tratarse como una herramienta para garantizar completaciones ni como sustituto de practicar el nivel.
 
-With the Geode SDK and Android toolchain installed:
+## Instalación
 
-    geode sdk install-binaries -p android64
-    geode build -p android64
+Cuando haya una compilación CI correcta, descarga el archivo `.geode` de la sección **Releases** del repositorio e instálalo con Geode para Android de 64 bits. Sustituye la versión anterior de Frame-Guard al actualizar.
 
-The CI workflow builds an Android64 .geode package. A successful compile does not replace testing inside the target game/device; input timestamps, UI positioning, transparency, keyboard behavior, and hitbox filtering still need in-game verification.
+- [Releases](https://github.com/Sfj3861/Frame-Guard/releases)
+- [Compilaciones y registros de CI](https://github.com/Sfj3861/Frame-Guard/actions)
 
+No descargues una compilación si el flujo de CI no ha terminado correctamente.
 
-### v0.8.0 validation note
+## Compilar desde el código
 
-Hitbox rendering now checks supported gameplay object types and valid geometry, and the trajectory overlay draws historical player hitbox outlines instead of only connecting player-center positions. The floating FG control is translucent and the default keyboard shortcut is **F**; the keybind can be changed in Geode settings. Build and in-game validation are still required before calling this release tested.
+Con el SDK y las herramientas de Android configuradas:
 
+```bash
+geode sdk install-binaries -p android64
+geode build -p android64
+```
 
-### v0.9.0 — forward trajectory preview
+El flujo de GitHub Actions valida `mod.json`, compila para Android64, comprueba que se haya generado exactamente un paquete, verifica la estructura ZIP y que contenga `mod.json`, calcula su SHA-256 y publica una versión preliminar. Una compilación satisfactoria sigue necesitando pruebas dentro de Geometry Dash Android 2.2081.
 
-The trajectory overlay now projects a short approximate future path for both players using current velocity and held input. It is a visual estimate only: future collisions, portals, rings, and trigger effects are not simulated. Hitboxes continue to use the game's collision rectangles/oriented boxes and omit decorative-only objects.
+## Historial de desarrollo
 
-## v0.11.0 development — bilingual controls / controles bilingües
+### v0.13.0
+- La superposición se mueve a la capa de objetos para compartir las transformaciones del nivel.
+- La caché de objetos de colisión se invalida al reiniciar el nivel.
+- Las entradas diferidas se descartan si el jugador ha muerto, y la cola se limpia al salir del nivel.
+- CI valida los metadatos y el paquete generado antes de publicarlo.
 
-- The floating menu now exposes the existing visual toggles, FrameGuard telemetry, HUD, informational text, CSV export, overlay opacity, safety margin, language selection, and a configurable 0–200 ms input-delay budget.
-- The maximum delay budget is converted to a tick count with `floor(effectiveFPS × milliseconds / 1000)`; e.g. a 200 ms budget gives 28 ticks at 144 FPS. The HUD shows the calculated tick budget when the FPS display is enabled.
-- Settings are shared between Geode settings and the floating menu. Geode setting names/descriptions include English and Spanish; the floating menu can switch its labels between English and Spanish.
-- **Important limitation:** this commit adds the delay-budget setting and tick calculation/display only. It does **not** delay or reschedule gameplay inputs yet, and the current path predictor is still approximate. Do not treat the mod as an automatic safe-input system until the input scheduler and physics prediction are implemented and tested in Geometry Dash.
+### v0.12.0
+- Se añadió un planificador experimental y opcional para eventos de salto.
+- Usa una estimación simplificada; no modela toda la física, colisiones ni triggers. No está probado en partida.
 
-
-
-### v0.12.0 development — opt-in predictive Jump scheduler
-
-- Added **Smart input delay / Espera inteligente** to both the Geode settings and the floating menu. It is **off by default** so the untested heuristic cannot unexpectedly change normal gameplay.
-- When enabled, the hook considers Jump press/release edges. A lightweight forward estimate checks hazards and solid geometry with the current held state versus the requested state. The input is passed through immediately unless the requested edge predicts an earlier collision and waiting appears safer; in that case the scheduler rechecks each frame and applies the edge when the estimate no longer favors waiting or the configured tick budget is exhausted.
-- The configured millisecond budget is converted using `floor(effective FPS × milliseconds / 1000)`. The scheduler only delays Jump edges, not every button or every mode-specific mechanic. It does not reproduce Geometry Dash's full physics, collision response, triggers, or portals, so its prediction can be wrong.
-- The scheduler is **not validated in-game and is not a guarantee of survival or a completion tool**. It must be compiled against Geode SDK 5.11.2 and tested on Geometry Dash Android 2.2081 before being considered usable. Keep the setting disabled if inputs feel delayed or behave unexpectedly.
+### v0.11.0
+- Controles bilingües, exportación CSV y presupuesto configurable de espera de entrada.
