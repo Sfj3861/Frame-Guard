@@ -123,12 +123,42 @@ namespace {
         float x = pos.x, y = pos.y;
         double vx = player->getCurrentXVelocity();
         double vy = player->getYVelocity();
+        if (!std::isfinite(vx) || !std::isfinite(vy)) return horizon + 1;
+
         const float gravitySign = static_cast<float>(player->flipMod());
         const float gravity = static_cast<float>(player->m_gravity * player->m_gravityMod);
         const auto rect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
         const float hw = std::max(2.f, rect.size.width * .5f);
         const float hh = std::max(2.f, rect.size.height * .5f);
         const float dt = 1.f;
+
+        // Collect candidate collision rectangles once, rather than traversing every
+        // level object on every simulated tick. This path only runs for the
+        // opt-in experimental input scheduler.
+        const float projectedEndX = x + static_cast<float>(vx * horizon);
+        const float queryMinX = std::min(x, projectedEndX) - hw - 64.f;
+        const float queryMaxX = std::max(x, projectedEndX) + hw + 64.f;
+        auto* objects = layer->m_objects;
+        std::vector<cocos2d::CCRect> obstacles;
+        obstacles.reserve(std::min<std::size_t>(objects->count(), 128));
+        for (unsigned int i = 0; i < objects->count(); ++i) {
+            auto* obj = typeinfo_cast<GameObject*>(objects->objectAtIndex(i));
+            if (!obj || obj->m_isDecoration || obj->m_isDecoration2 || obj->m_unk3ee) continue;
+            const bool collidable = obj->m_objectType == GameObjectType::Hazard ||
+                obj->m_objectType == GameObjectType::AnimatedHazard ||
+                obj->m_objectType == GameObjectType::Solid ||
+                (obj->m_objectType == GameObjectType::Slope && obj->m_slopeIsHazard);
+            if (!collidable) continue;
+
+            constexpr float broadPhasePad = 256.f;
+            if (obj->m_positionX < queryMinX - broadPhasePad ||
+                obj->m_positionX > queryMaxX + broadPhasePad)
+                continue;
+            const auto obstacle = obj->getObjectRect();
+            if (obstacle.getMaxX() < queryMinX || obstacle.getMinX() > queryMaxX) continue;
+            obstacles.push_back(obstacle);
+        }
+
         for (int tick = 1; tick <= horizon; ++tick) {
             if (tick == 1 && jumpEdge && !player->m_isShip && !player->m_isDart && !player->m_isSwing) {
                 // Approximate the immediate vertical impulse from a fresh jump edge.
@@ -144,15 +174,8 @@ namespace {
             x += static_cast<float>(vx * dt);
             y += static_cast<float>(vy * dt);
             cocos2d::CCRect box(x - hw, y - hh, hw * 2.f, hh * 2.f);
-            for (unsigned int i = 0; i < layer->m_objects->count(); ++i) {
-                auto* obj = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
-                if (!obj || obj->m_isDecoration || obj->m_isDecoration2 || obj->m_unk3ee) continue;
-                const bool collidable = obj->m_objectType == GameObjectType::Hazard ||
-                    obj->m_objectType == GameObjectType::AnimatedHazard ||
-                    obj->m_objectType == GameObjectType::Solid ||
-                    (obj->m_objectType == GameObjectType::Slope && obj->m_slopeIsHazard);
-                if (!collidable) continue;
-                if (box.intersectsRect(obj->getObjectRect())) return tick;
+            for (auto const& obstacle : obstacles) {
+                if (box.intersectsRect(obstacle)) return tick;
             }
             if (x > pos.x + 900.f || y < -200.f || y > 1400.f) break;
         }
@@ -277,9 +300,11 @@ namespace {
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
 
             cocos2d::CCRect viewportBounds;
-            const bool haveViewportBounds = getViewportBounds(viewportBounds, layer);
+            const bool needsObjectDiagnostics = showHitboxes || showTrajectory;
+            const bool haveViewportBounds =
+                needsObjectDiagnostics && getViewportBounds(viewportBounds, layer);
 
-            if ((showHitboxes || showTrajectory) && layer->m_objects) {
+            if (needsObjectDiagnostics && layer->m_objects) {
                 // Rebuild on array/count changes and periodically for levels that
                 // add or replace objects dynamically without changing the array size.
                 auto* objectArray = layer->m_objects;
