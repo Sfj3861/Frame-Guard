@@ -88,6 +88,11 @@ def main() -> None:
     require(f"Mod version: {version}." in workflow,
             "workflow release notes do not match mod.json version")
 
+    require("Frame-Guard-Android64.geode.sha256" in workflow,
+            "workflow checksum artifact is missing")
+    require("sha256sum -c Frame-Guard-Android64.geode.sha256" in workflow,
+            "workflow must verify its package checksum before upload")
+
     print(
         f"Frame-Guard {version}: project metadata, {len(settings)} settings, "
         f"source references, cache invariants and CI version labels passed."

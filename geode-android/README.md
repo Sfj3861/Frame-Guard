@@ -1,7 +1,7 @@
 # Frame-Guard — Geode para Android
 
 **Objetivo:** Geometry Dash Android 2.2081 · Geode SDK 5.11.2 · Android 64 bits.  
-**Versión de desarrollo:** v0.13.9.
+**Versión de desarrollo:** v0.13.10.
 
 Frame-Guard es una superposición de diagnóstico. Dibuja geometría estimada de colisión, límites del jugador y una trayectoria futura aproximada, y registra eventos de entrada para ayudar a analizar el comportamiento del juego.
 
@@ -30,7 +30,7 @@ Frame-Guard es una superposición de diagnóstico. Dibuja geometría estimada de
 
 ## Instalación
 
-Cuando haya una compilación CI correcta, descarga el archivo `.geode` de la sección **Releases** del repositorio e instálalo con Geode para Android de 64 bits. Sustituye la versión anterior de Frame-Guard al actualizar.
+Cuando haya una compilación CI correcta, descarga el archivo `.geode` de la sección **Releases** del repositorio e instálalo con Geode para Android de 64 bits. Sustituye la versión anterior de Frame-Guard al actualizar. Cada publicación también incluye un archivo `.sha256` que permite comprobar que el `.geode` descargado coincide con el artefacto generado por CI (por ejemplo, con `sha256sum -c Frame-Guard-Android64.geode.sha256` en Linux).
 
 - [Releases](https://github.com/Sfj3861/Frame-Guard/releases)
 - [Compilaciones y registros de CI](https://github.com/Sfj3861/Frame-Guard/actions)
@@ -49,6 +49,10 @@ geode build -p android64
 El flujo de GitHub Actions valida `mod.json`, compila para Android64, comprueba que se haya generado exactamente un paquete, verifica la estructura ZIP y que contenga `mod.json`, calcula su SHA-256 y publica una versión preliminar. Una compilación satisfactoria sigue necesitando pruebas dentro de Geometry Dash Android 2.2081.
 
 ## Historial de desarrollo
+
+### v0.13.10
+- Las publicaciones y los artefactos de CI incluyen un archivo SHA-256, y la compilación comprueba el hash antes de subirlos.
+- El resumen de la ejecución muestra la versión y el hash del paquete para facilitar la verificación.
 
 ### v0.13.9
 - Se añadió un validador de proyecto que comprueba que cada ajuste utilizado por el código exista en `mod.json`, que la versión CMake coincida con la del mod y que el planificador siga desactivado por defecto.

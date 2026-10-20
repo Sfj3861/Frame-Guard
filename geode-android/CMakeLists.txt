@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
-project(FrameGuardGeode VERSION 0.13.9 LANGUAGES CXX)
+project(FrameGuardGeode VERSION 0.13.10 LANGUAGES CXX)
 
 add_library(${PROJECT_NAME} SHARED
     src/main.cpp

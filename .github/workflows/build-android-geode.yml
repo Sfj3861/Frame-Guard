@@ -78,13 +78,24 @@ jobs:
           unzip -t Frame-Guard-Android64.geode
           unzip -l Frame-Guard-Android64.geode | grep -q 'mod.json'
           unzip -l Frame-Guard-Android64.geode | grep -q 'sfj3861.frame-guard.android64.so'
-          sha256sum Frame-Guard-Android64.geode
+          sha256sum Frame-Guard-Android64.geode | tee Frame-Guard-Android64.geode.sha256
+          sha256sum -c Frame-Guard-Android64.geode.sha256
+          MOD_VERSION="$(python3 -c 'import json; print(json.load(open("geode-android/mod.json"))["version"])')"
+          MOD_HASH="$(cut -d ' ' -f1 Frame-Guard-Android64.geode.sha256)"
+          {
+            echo "## Frame-Guard Android64 package"
+            echo "- Mod version: $MOD_VERSION"
+            echo "- Target: Geometry Dash Android 2.2081 / Geode SDK 5.11.2"
+            echo "- SHA-256: `$MOD_HASH`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload .geode package
+      - name: Upload .geode package and checksum
         uses: actions/upload-artifact@v7
         with:
-          name: Frame-Guard-Android64-v0.13.9
-          path: Frame-Guard-Android64.geode
+          name: Frame-Guard-Android64-v0.13.10
+          path: |
+            Frame-Guard-Android64.geode
+            Frame-Guard-Android64.geode.sha256
           if-no-files-found: error
           retention-days: 14
 
@@ -95,9 +106,11 @@ jobs:
           name: Frame-Guard Android64 build ${{ github.run_number }}
           body: |
             Automatically built Android64 .geode package from commit ${{ github.sha }}.
-            Mod version: v0.13.9.
+            Mod version: v0.13.10.
             This is an unverified development build. The experimental input scheduler is disabled by default.
             A successful package check is not a substitute for testing on Geometry Dash Android 2.2081.
           prerelease: true
           make_latest: false
-          files: Frame-Guard-Android64.geode
+          files: |
+            Frame-Guard-Android64.geode
+            Frame-Guard-Android64.geode.sha256
