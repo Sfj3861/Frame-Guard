@@ -2,6 +2,8 @@
 #include <Geode/modify/PlayLayer.hpp>
 #include <deque>
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 #include <vector>
 
 using namespace geode::prelude;
@@ -12,6 +14,43 @@ namespace {
 
     std::string toggleText(char const* name, bool value) {
         return fmt::format("{}: {}", name, value ? "ON" : "OFF");
+    }
+
+    namespace FrameGuardTelemetry {
+        static std::uint64_t frame = 0;
+        static std::uint64_t inputs = 0;
+        static int lastButton = -1;
+        static bool lastPressed = false;
+        static std::uint64_t lastFrame = 0;
+        static long long lastMicros = -1;
+        static long long deltaMicros = 0;
+        static std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+
+        static void nextFrame() { ++frame; }
+        static void record(PlayerButton button, bool pressed) {
+            if (!Mod::get()->getSettingValue<bool>("frameguard-enabled")) return;
+            auto now = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - started).count();
+            deltaMicros = lastMicros < 0 ? 0 : now - lastMicros;
+            lastMicros = now;
+            lastButton = static_cast<int>(button);
+            lastPressed = pressed;
+            lastFrame = frame;
+            ++inputs;
+        }
+        static void reset() {
+            frame = inputs = lastFrame = 0;
+            lastButton = -1;
+            lastMicros = -1;
+            deltaMicros = 0;
+            started = std::chrono::steady_clock::now();
+        }
+        static std::string summary() {
+            if (!Mod::get()->getSettingValue<bool>("frameguard-enabled")) return "FrameGuard OFF";
+            if (lastButton < 0) return fmt::format("FrameGuard ON | frame {} | inputs 0", frame);
+            return fmt::format("FrameGuard ON | frame {} | inputs {} | {} B{} @{} | delta {} us",
+                frame, inputs, lastPressed ? "PRESS" : "RELEASE", lastButton, lastFrame, deltaMicros);
+        }
     }
 
     // Frame-Guard draws collision geometry independently, using Geometry Dash's
