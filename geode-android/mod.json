@@ -7,7 +7,7 @@
   "name": "Frame-Guard",
   "version": "v0.15.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with live player collision geometry, an observed player-box trail, optimized rectangle-based hitbox culling, input telemetry, independently configurable tick horizon and an eight-step forward trajectory estimate. Input-window simulation now advances one modeled update per tick and separates forecast horizon from visual hitbox margin; prediction remains approximate because game triggers and collision resolution are not replayed.",
+  "description": "Frame-Guard Android overlay with live player collision geometry, an observed player-box trail, optimized rectangle-based hitbox culling, input telemetry, independently configurable tick horizon and a configurable forward trajectory estimate. Input-window simulation now advances one modeled update per tick and separates forecast horizon from visual hitbox margin; prediction remains approximate because game triggers and collision resolution are not replayed.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
