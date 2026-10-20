@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Validate mod metadata
         shell: bash
@@ -75,21 +75,21 @@ jobs:
           sha256sum Frame-Guard-Android64.geode
 
       - name: Upload .geode package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: Frame-Guard-Android64-v0.13.7
+          name: Frame-Guard-Android64-v0.13.8
           path: Frame-Guard-Android64.geode
           if-no-files-found: error
           retention-days: 14
 
       - name: Publish test build download
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: frame-guard-build-${{ github.run_number }}
           name: Frame-Guard Android64 build ${{ github.run_number }}
           body: |
             Automatically built Android64 .geode package from commit ${{ github.sha }}.
-            Mod version: v0.13.7.
+            Mod version: v0.13.8.
             This is an unverified development build. The experimental input scheduler is disabled by default.
             A successful package check is not a substitute for testing on Geometry Dash Android 2.2081.
           prerelease: true

@@ -117,6 +117,20 @@ namespace {
     static PlayLayer* g_activePlayLayer = nullptr;
     static float g_effectiveFPS = 60.f;
 
+    // Get a collision rectangle without leaving dirty/cache flags changed.
+    // Shared by the rendering overlay and the opt-in input predictor.
+    static cocos2d::CCRect safeCollisionRect(GameObject* obj) {
+        if (!obj) return cocos2d::CCRect(0.f, 0.f, 0.f, 0.f);
+        if (!obj->m_isObjectRectDirty)
+            return obj->m_objectRect;
+        const bool wasDirty = obj->m_isObjectRectDirty;
+        const bool boxOffsetWasCalculated = obj->m_boxOffsetCalculated;
+        const auto rect = obj->getObjectRect();
+        obj->m_isObjectRectDirty = wasDirty;
+        obj->m_boxOffsetCalculated = boxOffsetWasCalculated;
+        return rect;
+    }
+
     static int predictedCollisionFrame(PlayLayer* layer, PlayerObject* player, bool held, int horizon, bool jumpEdge = false) {
         if (!layer || !player || player->m_isDead || !layer->m_objects) return horizon + 1;
         auto pos = player->getPosition();
@@ -154,7 +168,7 @@ namespace {
             if (obj->m_positionX < queryMinX - broadPhasePad ||
                 obj->m_positionX > queryMaxX + broadPhasePad)
                 continue;
-            const auto obstacle = obj->getObjectRect();
+            const auto obstacle = safeCollisionRect(obj);
             if (obstacle.getMaxX() < queryMinX || obstacle.getMinX() > queryMaxX) continue;
             obstacles.push_back(obstacle);
         }
@@ -284,6 +298,7 @@ namespace {
         void invalidateObjectCache() {
             // Level resets can replace the backing array while keeping the same count.
             m_collisionObjects.clear();
+            m_cachedObjectEntries.clear();
             m_cachedObjectArray = nullptr;
             m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
             m_cachedAtFrame = 0;
@@ -309,17 +324,35 @@ namespace {
                 // add or replace objects dynamically without changing the array size.
                 auto* objectArray = layer->m_objects;
                 const auto count = objectArray->count();
-                const bool refreshCache =
+                bool pointersChanged =
                     objectArray != m_cachedObjectArray ||
                     count != m_cachedObjectCount ||
-                    FrameGuardTelemetry::frame - m_cachedAtFrame >= 30;
+                    m_cachedObjectEntries.size() != m_collisionObjects.size();
+                // Detect object replacement even if the array/count stay identical.
+                // Compare pointers at their old indexes before dereferencing the cached
+                // pointers themselves, avoiding stale GameObject references.
+                if (!pointersChanged) {
+                    for (auto const& entry : m_cachedObjectEntries) {
+                        if (entry.first >= count ||
+                            typeinfo_cast<GameObject*>(objectArray->objectAtIndex(entry.first)) != entry.second) {
+                            pointersChanged = true;
+                            break;
+                        }
+                    }
+                }
+                const bool refreshCache =
+                    pointersChanged || FrameGuardTelemetry::frame - m_cachedAtFrame >= 30;
                 if (refreshCache) {
                     m_collisionObjects.clear();
+                    m_cachedObjectEntries.clear();
                     m_collisionObjects.reserve(count);
+                    m_cachedObjectEntries.reserve(count);
                     for (unsigned int i = 0; i < count; ++i) {
                         auto* object = typeinfo_cast<GameObject*>(objectArray->objectAtIndex(i));
-                        if (object && isCollisionObject(object))
+                        if (object && isCollisionObject(object)) {
                             m_collisionObjects.push_back(object);
+                            m_cachedObjectEntries.emplace_back(i, object);
+                        }
                     }
                     m_cachedObjectArray = objectArray;
                     m_cachedObjectCount = count;
@@ -591,14 +624,7 @@ namespace {
         }
 
         static cocos2d::CCRect collisionRect(GameObject* obj) {
-            if (!obj->m_isObjectRectDirty)
-                return obj->m_objectRect;
-            const bool wasDirty = obj->m_isObjectRectDirty;
-            const bool boxOffsetWasCalculated = obj->m_boxOffsetCalculated;
-            const auto rect = obj->getObjectRect();
-            obj->m_isObjectRectDirty = wasDirty;
-            obj->m_boxOffsetCalculated = boxOffsetWasCalculated;
-            return rect;
+            return safeCollisionRect(obj);
         }
 
         void drawObjectGeometry(GameObject* obj, cocos2d::CCRect const& rect) {
@@ -697,6 +723,7 @@ namespace {
         cocos2d::CCDrawNode* m_draw = nullptr;
         cocos2d::CCArray* m_cachedObjectArray = nullptr;
         std::vector<GameObject*> m_collisionObjects;
+        std::vector<std::pair<unsigned int, GameObject*>> m_cachedObjectEntries;
         unsigned int m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
         std::uint64_t m_cachedAtFrame = 0;
     };
