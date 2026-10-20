@@ -18,7 +18,6 @@ using namespace geode::prelude;
 
 namespace {
     constexpr int kOverlayZ = 9999;
-    constexpr std::size_t kTrailLimit = 48;
 
     bool spanish() { return Mod::get()->getSettingValue<bool>("ui-spanish"); }
     char const* tr(char const* en, char const* es) { return spanish() ? es : en; }
@@ -232,12 +231,12 @@ namespace {
             return true;
         }
 
-        void resetTrail() {
-            // Level reset can replace every GameObject while keeping the same count.
-            // Force a fresh pointer cache before drawing the next frame.
+        void invalidateObjectCache() {
+            // Level resets can replace the backing array while keeping the same count.
             m_collisionObjects.clear();
             m_cachedObjectArray = nullptr;
             m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
+            m_cachedAtFrame = 0;
         }
 
         void refresh(PlayLayer* layer) {
@@ -250,11 +249,19 @@ namespace {
             const bool showPlayerBounds = Mod::get()->getSettingValue<bool>("show-player-bounds");
             const bool showTrajectory = Mod::get()->getSettingValue<bool>("show-trajectory");
 
+            cocos2d::CCRect viewportBounds;
+            const bool haveViewportBounds = getViewportBounds(viewportBounds, layer);
+
             if ((showHitboxes || showTrajectory) && layer->m_objects) {
-                // Build the collision cache for both drawing and path-safety checks.
+                // Rebuild on array/count changes and periodically for levels that
+                // add or replace objects dynamically without changing the array size.
                 auto* objectArray = layer->m_objects;
                 const auto count = objectArray->count();
-                if (objectArray != m_cachedObjectArray || count != m_cachedObjectCount) {
+                const bool refreshCache =
+                    objectArray != m_cachedObjectArray ||
+                    count != m_cachedObjectCount ||
+                    FrameGuardTelemetry::frame - m_cachedAtFrame >= 30;
+                if (refreshCache) {
                     m_collisionObjects.clear();
                     m_collisionObjects.reserve(count);
                     for (unsigned int i = 0; i < count; ++i) {
@@ -264,14 +271,40 @@ namespace {
                     }
                     m_cachedObjectArray = objectArray;
                     m_cachedObjectCount = count;
+                    m_cachedAtFrame = FrameGuardTelemetry::frame;
                 }
                 if (showHitboxes) {
                     for (auto* object : m_collisionObjects) {
                         if (!object) continue;
+
+                        // Reject distant objects before asking the game to calculate
+                        // potentially dirty collision rectangles. The visible bounds
+                        // are converted into this overlay's local coordinates so camera
+                        // and object-layer transforms are included.
+                        if (haveViewportBounds) {
+                            const float radius = object->m_objectRadius > 0.f
+                                ? object->m_objectRadius * std::max<float>(object->m_scaleX, object->m_scaleY)
+                                : 0.f;
+                            constexpr float pad = 192.f;
+                            if (object->m_positionX + radius < viewportBounds.getMinX() - pad ||
+                                object->m_positionX - radius > viewportBounds.getMaxX() + pad ||
+                                object->m_positionY + radius < viewportBounds.getMinY() - pad ||
+                                object->m_positionY - radius > viewportBounds.getMaxY() + pad)
+                                continue;
+                        }
+
                         const auto rect = collisionRect(object);
+                        if (haveViewportBounds && object->m_objectRadius <= 0.f) {
+                            constexpr float pad = 32.f;
+                            if (rect.getMaxX() < viewportBounds.getMinX() - pad ||
+                                rect.getMinX() > viewportBounds.getMaxX() + pad ||
+                                rect.getMaxY() < viewportBounds.getMinY() - pad ||
+                                rect.getMinY() > viewportBounds.getMaxY() + pad)
+                                continue;
+                        }
                         if (object->m_objectRadius > 0.f ||
                             (rect.size.width > 0.f && rect.size.height > 0.f))
-                            drawObjectGeometry(object);
+                            drawObjectGeometry(object, rect);
                     }
                 }
             }
@@ -295,6 +328,60 @@ namespace {
         }
 
     private:
+        bool getViewportBounds(cocos2d::CCRect& bounds, PlayLayer* layer) {
+            auto* director = cocos2d::CCDirector::sharedDirector();
+            if (!director) return false;
+
+            const auto origin = director->getVisibleOrigin();
+            const auto size = director->getVisibleSize();
+            if (!std::isfinite(origin.x) || !std::isfinite(origin.y) ||
+                !std::isfinite(size.width) || !std::isfinite(size.height) ||
+                size.width <= 0.f || size.height <= 0.f)
+                return false;
+
+            // Convert all four window corners: this remains correct under scroll,
+            // zoom, and transformed parents instead of assuming fixed screen coords.
+            cocos2d::CCPoint corners[] = {
+                this->convertToNodeSpace(origin),
+                this->convertToNodeSpace(ccp(origin.x + size.width, origin.y)),
+                this->convertToNodeSpace(ccp(origin.x, origin.y + size.height)),
+                this->convertToNodeSpace(ccp(origin.x + size.width, origin.y + size.height))
+            };
+            float minX = corners[0].x, maxX = corners[0].x;
+            float minY = corners[0].y, maxY = corners[0].y;
+            for (auto const& point : corners) {
+                if (!std::isfinite(point.x) || !std::isfinite(point.y)) return false;
+                minX = std::min(minX, point.x);
+                maxX = std::max(maxX, point.x);
+                minY = std::min(minY, point.y);
+                maxY = std::max(maxY, point.y);
+            }
+            if (maxX <= minX || maxY <= minY ||
+                maxX - minX > 100000.f || maxY - minY > 100000.f)
+                return false;
+
+            // If the conversion doesn't seem to include an active player's current
+            // point (unusual viewport or camera setup), disable culling rather than
+            // risk hiding every collision outline.
+            bool hasLivePlayer = false;
+            bool playerWithinBounds = false;
+            auto testPlayer = [&](PlayerObject* player) {
+                if (!player || player->m_isDead) return;
+                hasLivePlayer = true;
+                const auto pos = player->getPosition();
+                constexpr float fallbackPad = 1600.f;
+                if (pos.x >= minX - fallbackPad && pos.x <= maxX + fallbackPad &&
+                    pos.y >= minY - fallbackPad && pos.y <= maxY + fallbackPad)
+                    playerWithinBounds = true;
+            };
+            testPlayer(layer->m_player1);
+            testPlayer(layer->m_player2);
+            if (hasLivePlayer && !playerWithinBounds) return false;
+
+            bounds = cocos2d::CCRect(minX, minY, maxX - minX, maxY - minY);
+            return true;
+        }
+
         static bool typeIs(GameObject* obj, std::initializer_list<GameObjectType> types) {
             return std::find(types.begin(), types.end(), obj->m_objectType) != types.end();
         }
@@ -357,59 +444,6 @@ namespace {
             return cocos2d::ccc4f(1.0f, 0.85f, 0.15f, 0.9f);
         }
 
-        struct PlayerSnapshot {
-            std::array<cocos2d::CCPoint, 4> body;
-            std::array<cocos2d::CCPoint, 4> mini;
-        };
-
-        static std::array<cocos2d::CCPoint, 4> rectCorners(cocos2d::CCRect const& rect) {
-            return {{
-                ccp(rect.getMinX(), rect.getMinY()),
-                ccp(rect.getMaxX(), rect.getMinY()),
-                ccp(rect.getMaxX(), rect.getMaxY()),
-                ccp(rect.getMinX(), rect.getMaxY())
-            }};
-        }
-
-        static PlayerSnapshot snapshotPlayer(PlayerObject* player) {
-            PlayerSnapshot snapshot{};
-            auto bodyRect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
-            snapshot.body = rectCorners(bodyRect);
-            if (player->m_orientedBox) {
-                for (int i = 0; i < 4; ++i)
-                    snapshot.body[i] = player->m_orientedBox->m_corners[i];
-            }
-            snapshot.mini = rectCorners(player->getObjectRect(0.3f, 0.3f));
-            return snapshot;
-        }
-
-        static void captureTrail(PlayerObject* player, std::deque<PlayerSnapshot>& trail) {
-            if (!player || player->m_isDead) {
-                trail.clear();
-                return;
-            }
-            trail.push_back(snapshotPlayer(player));
-            while (trail.size() > kTrailLimit) trail.pop_front();
-        }
-
-        void drawTrail(std::deque<PlayerSnapshot> const& trail, cocos2d::ccColor4F base) {
-            if (trail.empty()) return;
-            for (std::size_t i = 0; i < trail.size(); ++i) {
-                const float fade = static_cast<float>(i + 1) /
-                    static_cast<float>(trail.size());
-                auto bodyColour = base;
-                bodyColour.a = 0.04f + 0.26f * fade;
-                auto miniColour = cocos2d::ccc4f(0.22f, 1.0f, 0.48f, 0.03f + 0.18f * fade);
-                const auto& state = trail[i];
-                m_draw->drawPolygon(const_cast<cocos2d::CCPoint*>(state.body.data()), 4,
-                    cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f), 0.65f, bodyColour,
-                    cocos2d::BorderAlignment::Inside);
-                m_draw->drawPolygon(const_cast<cocos2d::CCPoint*>(state.mini.data()), 4,
-                    cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f), 0.55f, miniColour,
-                    cocos2d::BorderAlignment::Inside);
-            }
-        }
-
         void drawPrediction(PlayerObject* player, bool held, cocos2d::ccColor4F colour) {
             if (!player || player->m_isDead) return;
 
@@ -442,6 +476,11 @@ namespace {
                     GameObjectType::Hazard, GameObjectType::AnimatedHazard,
                     GameObjectType::Solid, GameObjectType::Slope
                 })) continue;
+                // Most objects in a level are far away from the simulated segment.
+                // Use position as a cheap first-stage check before rectangle calculation.
+                constexpr float broadPhasePad = 192.f;
+                if (object->m_positionX < queryMinX - broadPhasePad ||
+                    object->m_positionX > queryMaxX + broadPhasePad) continue;
                 const auto rect = collisionRect(object);
                 if (rect.getMaxX() < queryMinX || rect.getMinX() > queryMaxX) continue;
                 nearbyObjects.emplace_back(object, rect);
@@ -510,7 +549,7 @@ namespace {
             return rect;
         }
 
-        void drawObjectGeometry(GameObject* obj) {
+        void drawObjectGeometry(GameObject* obj, cocos2d::CCRect const& rect) {
             const auto colour = colourFor(obj);
             const float width = 0.7f;
 
@@ -525,7 +564,6 @@ namespace {
 
             // Reuse Geometry Dash's cached collision rect when possible. If the
             // game marks it dirty, calculate it once while restoring its dirty flags.
-            const auto rect = collisionRect(obj);
             if (rect.size.width <= 0.f || rect.size.height <= 0.f) return;
 
             if (obj->m_objectType == GameObjectType::Slope) {
@@ -608,6 +646,7 @@ namespace {
         cocos2d::CCArray* m_cachedObjectArray = nullptr;
         std::vector<GameObject*> m_collisionObjects;
         unsigned int m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
+        std::uint64_t m_cachedAtFrame = 0;
     };
 
     class FrameGuardSlider final : public cocos2d::CCLayer {
@@ -1058,7 +1097,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
     void resetLevel() {
         // Drop deferred callbacks before the game resets player/level state.
         g_pendingInputs.clear();
-        if (m_fields->overlay) m_fields->overlay->resetTrail();
+        if (m_fields->overlay) m_fields->overlay->invalidateObjectCache();
         FrameGuardTelemetry::reset();
         g_activePlayLayer = this;
         PlayLayer::resetLevel();
