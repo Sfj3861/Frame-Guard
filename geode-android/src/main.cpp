@@ -305,22 +305,26 @@ namespace {
             m_playerButton = makeItem("", menu_selector(FrameGuardMenu::onTogglePlayerBounds));
             m_trailButton = makeItem("", menu_selector(FrameGuardMenu::onToggleTrail));
             m_fpsButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFPS));
-            if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton || !m_fpsButton) return false;
+            m_guardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFrameGuard));
+            if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton || !m_fpsButton || !m_guardButton) return false;
 
             m_openButton->setPosition(ccp(42.f, size.height - 34.f));
             m_hitboxButton->setPosition(ccp(91.f, size.height - 64.f));
             m_playerButton->setPosition(ccp(91.f, size.height - 88.f));
             m_trailButton->setPosition(ccp(91.f, size.height - 112.f));
             m_fpsButton->setPosition(ccp(91.f, size.height - 136.f));
+            m_guardButton->setPosition(ccp(91.f, size.height - 160.f));
             m_menu->addChild(m_openButton);
             m_menu->addChild(m_hitboxButton);
             m_menu->addChild(m_playerButton);
             m_menu->addChild(m_trailButton);
             m_menu->addChild(m_fpsButton);
+            m_menu->addChild(m_guardButton);
             m_hitboxButton->setVisible(false);
             m_playerButton->setVisible(false);
             m_trailButton->setVisible(false);
             m_fpsButton->setVisible(false);
+            m_guardButton->setVisible(false);
 
             m_fpsLabel = cocos2d::CCLabelBMFont::create("FPS: --", "bigFont.fnt");
             if (m_fpsLabel) {
@@ -328,6 +332,14 @@ namespace {
                 m_fpsLabel->setPosition(ccp(size.width / 2.f, size.height - 20.f));
                 m_fpsLabel->setVisible(Mod::get()->getSettingValue<bool>("show-fps"));
                 this->addChild(m_fpsLabel, 2);
+            }
+            m_guardLabel = cocos2d::CCLabelBMFont::create("FrameGuard starting...", "bigFont.fnt");
+            if (m_guardLabel) {
+                m_guardLabel->setScale(0.34f);
+                m_guardLabel->setAnchorPoint(ccp(0.f, 0.5f));
+                m_guardLabel->setPosition(ccp(8.f, size.height - 42.f));
+                m_guardLabel->setVisible(Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
+                this->addChild(m_guardLabel, 2);
             }
             syncLabels();
             this->setID("frame-guard-in-game-menu");
@@ -349,6 +361,21 @@ namespace {
                     toggleText("FPS", Mod::get()->getSettingValue<bool>("show-fps")).c_str());
             if (m_fpsLabel)
                 m_fpsLabel->setVisible(Mod::get()->getSettingValue<bool>("show-fps"));
+            if (m_guardButton)
+                static_cast<cocos2d::CCLabelBMFont*>(m_guardButton->getLabel())->setString(
+                    toggleText("FrameGuard", Mod::get()->getSettingValue<bool>("frameguard-enabled")).c_str());
+            if (m_guardLabel)
+                m_guardLabel->setVisible(Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
+        }
+
+        void updateFrameGuardHUD(float dt) {
+            if (!m_guardLabel || !Mod::get()->getSettingValue<bool>("show-frameguard-hud")) return;
+            m_guardElapsed += dt;
+            if (m_guardElapsed >= 0.10f) {
+                auto text = FrameGuardTelemetry::summary();
+                m_guardLabel->setString(text.c_str());
+                m_guardElapsed = 0.f;
+            }
         }
 
         void updateFPS(float dt) {
@@ -377,6 +404,7 @@ namespace {
             m_playerButton->setVisible(m_open);
             m_trailButton->setVisible(m_open);
             m_fpsButton->setVisible(m_open);
+            m_guardButton->setVisible(m_open);
             syncLabels();
         }
         void onToggleHitboxes(cocos2d::CCObject*) {
@@ -399,6 +427,11 @@ namespace {
                 !Mod::get()->getSettingValue<bool>("show-fps"));
             syncLabels();
         }
+        void onToggleFrameGuard(cocos2d::CCObject*) {
+            Mod::get()->setSettingValue<bool>("frameguard-enabled",
+                !Mod::get()->getSettingValue<bool>("frameguard-enabled"));
+            syncLabels();
+        }
 
         cocos2d::CCMenu* m_menu = nullptr;
         cocos2d::CCMenuItemLabel* m_openButton = nullptr;
@@ -406,7 +439,10 @@ namespace {
         cocos2d::CCMenuItemLabel* m_playerButton = nullptr;
         cocos2d::CCMenuItemLabel* m_trailButton = nullptr;
         cocos2d::CCMenuItemLabel* m_fpsButton = nullptr;
+        cocos2d::CCMenuItemLabel* m_guardButton = nullptr;
         cocos2d::CCLabelBMFont* m_fpsLabel = nullptr;
+        cocos2d::CCLabelBMFont* m_guardLabel = nullptr;
+        float m_guardElapsed = 0.f;
         float m_elapsed = 0.f;
         unsigned int m_frames = 0;
         bool m_open = false;
@@ -434,6 +470,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
         if (m_fields->menu) {
             m_fields->menu->syncLabels();
             m_fields->menu->updateFPS(dt);
+            m_fields->menu->updateFrameGuardHUD(dt);
         }
     }
 
