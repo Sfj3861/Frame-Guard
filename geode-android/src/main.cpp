@@ -187,22 +187,43 @@ namespace {
     static void processScheduledInputs(PlayLayer* layer, float dt) {
         g_activePlayLayer = layer;
         if (std::isfinite(dt) && dt > 0.0001f) g_effectiveFPS = 1.f / dt;
+
+        // Preserve the edge sequence: do not deliver a press and its release in
+        // the same update, or a short tap can be swallowed by the game.
+        std::vector<PlayerObject*> appliedThisFrame;
+        appliedThisFrame.reserve(2);
+
         for (std::size_t i = 0; i < g_pendingInputs.size();) {
             auto& item = g_pendingInputs[i];
-            bool blockedByEarlierEdge = false;
-            for (std::size_t j = 0; j < i; ++j) {
-                if (g_pendingInputs[j].player == item.player) { blockedByEarlierEdge = true; break; }
+            bool blockedByEarlierEdge = std::find(
+                appliedThisFrame.begin(), appliedThisFrame.end(), item.player
+            ) != appliedThisFrame.end();
+
+            for (std::size_t j = 0; !blockedByEarlierEdge && j < i; ++j) {
+                if (g_pendingInputs[j].player == item.player) {
+                    blockedByEarlierEdge = true;
+                    break;
+                }
             }
+
             // A deferred edge must never be replayed after the player has died.
             // The layer owns the player lifetime; onExit/resetLevel also clear this queue.
             if (!item.player || item.player->m_isDead) {
                 g_pendingInputs.erase(g_pendingInputs.begin() + static_cast<std::ptrdiff_t>(i));
                 continue;
             }
-            if (blockedByEarlierEdge || shouldWaitForInput(layer, item)) { ++i; continue; }
+            if (blockedByEarlierEdge || shouldWaitForInput(layer, item)) {
+                ++i;
+                continue;
+            }
+
+            auto* appliedPlayer = item.player;
             auto apply = std::move(item.apply);
             g_pendingInputs.erase(g_pendingInputs.begin() + static_cast<std::ptrdiff_t>(i));
-            if (apply) apply();
+            if (apply) {
+                apply();
+                appliedThisFrame.push_back(appliedPlayer);
+            }
         }
     }
 
@@ -1095,7 +1116,10 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
             if (m_fields->menu) m_uiLayer->addChild(m_fields->menu, kOverlayZ);
         }
         if (m_fields->menu) {
-            m_fields->menu->syncLabels();
+            // Menu callbacks sync immediately; poll less often for changes made
+            // through Geode's settings popup to avoid rebuilding every label each frame.
+            if (FrameGuardTelemetry::frame % 30 == 0)
+                m_fields->menu->syncLabels();
             m_fields->menu->updateFPS(dt);
             m_fields->menu->updateFrameGuardHUD(dt);
         }
