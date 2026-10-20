@@ -5,7 +5,7 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.13.8",
+  "version": "v0.13.9",
   "developer": "Sfj3861",
   "description": "Frame-Guard Android overlay with viewport-culled hitbox diagnostics, optimized approximate trajectory preview, compact responsive bilingual controls, safe collision-rectangle caching, and an opt-in experimental Jump scheduler.",
   "settings": {
@@ -37,7 +37,7 @@
       "name": "Enable FrameGuard / Activar FrameGuard",
       "type": "bool",
       "default": true,
-      "description": "Record input timing for diagnostics; does not currently delay inputs. / Registra los tiempos de entrada para diagnóstico; actualmente no retrasa las entradas."
+      "description": "Record input timing and enable diagnostics; required for the optional Jump scheduler. / Registra tiempos de entrada y activa diagnósticos; es necesario para el planificador opcional de salto."
     },
     "show-frameguard-hud": {
       "name": "Show FrameGuard HUD / Mostrar HUD de FrameGuard",

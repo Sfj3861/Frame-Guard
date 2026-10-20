@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "geode-android/src/**"
+      - "geode-android/tools/**"
       - "geode-android/mod.json"
       - "geode-android/CMakeLists.txt"
       - ".github/workflows/build-android-geode.yml"
@@ -46,6 +47,10 @@ jobs:
           print(f"Validated {mod['name']} {mod['version']} for GD {mod['gd']['android']}")
           PY
 
+      - name: Validate source invariants
+        shell: bash
+        run: python3 geode-android/tools/validate_project.py
+
       - name: Build .geode package
         id: build
         uses: geode-sdk/build-geode-mod@main
@@ -72,12 +77,13 @@ jobs:
           test -s Frame-Guard-Android64.geode
           unzip -t Frame-Guard-Android64.geode
           unzip -l Frame-Guard-Android64.geode | grep -q 'mod.json'
+          unzip -l Frame-Guard-Android64.geode | grep -q 'sfj3861.frame-guard.android64.so'
           sha256sum Frame-Guard-Android64.geode
 
       - name: Upload .geode package
         uses: actions/upload-artifact@v7
         with:
-          name: Frame-Guard-Android64-v0.13.8
+          name: Frame-Guard-Android64-v0.13.9
           path: Frame-Guard-Android64.geode
           if-no-files-found: error
           retention-days: 14
@@ -89,7 +95,7 @@ jobs:
           name: Frame-Guard Android64 build ${{ github.run_number }}
           body: |
             Automatically built Android64 .geode package from commit ${{ github.sha }}.
-            Mod version: v0.13.8.
+            Mod version: v0.13.9.
             This is an unverified development build. The experimental input scheduler is disabled by default.
             A successful package check is not a substitute for testing on Geometry Dash Android 2.2081.
           prerelease: true
