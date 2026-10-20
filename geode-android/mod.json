@@ -5,15 +5,15 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.6.0",
+  "version": "v0.7.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android diagnostics: collision overlays, player bounds, movement trail, FPS and frame/input timestamp telemetry.",
+  "description": "Frame-Guard Android overlay with collision-geometry filtering, translucent floating control, F keybind, player bounds, trail, FPS, and input timing telemetry.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
       "type": "bool",
       "default": true,
-      "description": "Show thin outline bounds for visible level objects and player bounds."
+      "description": "Draw outlines only for objects with collision geometry initialized by the game; decorative objects without hitboxes are omitted."
     },
     "show-trajectory": {
       "name": "Show trajectory",
@@ -44,6 +44,13 @@
       "type": "bool",
       "default": true,
       "description": "Display frame counter, input count, and last input timing on screen."
+    },
+    "toggle-menu": {
+      "name": "Toggle Frame-Guard menu",
+      "type": "keybind",
+      "default": "F",
+      "category": "gameplay",
+      "description": "Toggle the floating Frame-Guard menu with the F key."
     }
   }
 }
