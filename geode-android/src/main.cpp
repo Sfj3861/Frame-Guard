@@ -6,8 +6,10 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <functional>
 #include <vector>
 #include <limits>
 
@@ -528,7 +530,12 @@ namespace {
             return true;
         }
         int getValue() const { return m_value; }
-        void setValue(int value) { m_value = std::clamp(value, m_min, m_max); redraw(); }
+        void setValue(int value) {
+            value = std::clamp(value, m_min, m_max);
+            if (value == m_value) return;
+            m_value = value;
+            redraw();
+        }
     private:
         void setFromX(float x) {
             const float t = std::clamp((x - 6.f) / 178.f, 0.f, 1.f);
