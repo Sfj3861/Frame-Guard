@@ -10,7 +10,7 @@ on:
       - ".github/workflows/build-android-geode.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android64:
@@ -29,10 +29,30 @@ jobs:
           sdk: given
           build-config: Release
 
+      - name: Prepare package
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE="$(find "${{ steps.build.outputs.build-output }}" -maxdepth 1 -type f -name '*.geode' -print -quit)"
+          test -n "$PACKAGE"
+          cp "$PACKAGE" Frame-Guard-Android64.geode
+
       - name: Upload .geode package
         uses: actions/upload-artifact@v4
         with:
           name: Frame-Guard-Android64-v0.12.0
-          path: ${{ steps.build.outputs.build-output }}/*.geode
+          path: Frame-Guard-Android64.geode
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish test build download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: frame-guard-build-${{ github.run_number }}
+          name: Frame-Guard Android64 build ${{ github.run_number }}
+          body: |
+            Automatically built Android64 .geode package from commit ${{ github.sha }}.
+            This is an unverified development build; test it carefully and remove it if the game crashes or input behaves unexpectedly.
+          prerelease: true
+          make_latest: false
+          files: Frame-Guard-Android64.geode
