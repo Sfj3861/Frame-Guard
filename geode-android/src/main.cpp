@@ -236,6 +236,7 @@ namespace {
             // Level reset can replace every GameObject while keeping the same count.
             // Force a fresh pointer cache before drawing the next frame.
             m_collisionObjects.clear();
+            m_cachedObjectArray = nullptr;
             m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
         }
 
@@ -251,15 +252,17 @@ namespace {
 
             if ((showHitboxes || showTrajectory) && layer->m_objects) {
                 // Build the collision cache for both drawing and path-safety checks.
-                const auto count = layer->m_objects->count();
-                if (count != m_cachedObjectCount) {
+                auto* objectArray = layer->m_objects;
+                const auto count = objectArray->count();
+                if (objectArray != m_cachedObjectArray || count != m_cachedObjectCount) {
                     m_collisionObjects.clear();
                     m_collisionObjects.reserve(count);
                     for (unsigned int i = 0; i < count; ++i) {
-                        auto* object = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
+                        auto* object = typeinfo_cast<GameObject*>(objectArray->objectAtIndex(i));
                         if (object && isCollisionObject(object))
                             m_collisionObjects.push_back(object);
                     }
+                    m_cachedObjectArray = objectArray;
                     m_cachedObjectCount = count;
                 }
                 if (showHitboxes) {
@@ -284,7 +287,7 @@ namespace {
                         cocos2d::ccc4f(1.0f, 0.45f, 0.10f, 1.0f));
             }
 
-            if (showPlayerBounds || showHitboxes) {
+            if (showPlayerBounds) {
                 if (layer->m_player1) drawPlayerGeometry(layer->m_player1);
                 if (layer->m_player2 && layer->m_player2->isRunning())
                     drawPlayerGeometry(layer->m_player2);
@@ -423,6 +426,9 @@ namespace {
             const auto currentRect = player->getObjectRect(player->m_vehicleSize, player->m_vehicleSize);
             const float halfWidth = std::max(2.0f, currentRect.size.width * 0.5f);
             const float halfHeight = std::max(2.0f, currentRect.size.height * 0.5f);
+            const int marginTicks = std::clamp(
+                Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
+            const float safetyPad = static_cast<float>(marginTicks) * 1.25f;
             // Cache only collision geometry inside the predicted horizontal span.
             // The previous implementation tested every level object at every one of
             // the 120 prediction steps, multiplying work on long/high-object-count levels.
@@ -459,9 +465,6 @@ namespace {
                 x += static_cast<float>(xVelocity * step);
                 y += static_cast<float>(yVelocity * step);
                 const auto current = ccp(x, y);
-                const int marginTicks = std::clamp(
-                    Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
-                const float safetyPad = static_cast<float>(marginTicks) * 1.25f;
                 cocos2d::CCRect projectedBox(
                     x - halfWidth - safetyPad, y - halfHeight - safetyPad,
                     halfWidth * 2.f + safetyPad * 2.f, halfHeight * 2.f + safetyPad * 2.f);
@@ -602,6 +605,7 @@ namespace {
         }
 
         cocos2d::CCDrawNode* m_draw = nullptr;
+        cocos2d::CCArray* m_cachedObjectArray = nullptr;
         std::vector<GameObject*> m_collisionObjects;
         unsigned int m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
     };
@@ -705,7 +709,8 @@ namespace {
 
         bool init() override {
             if (!CCLayer::init()) return false;
-            this->setTouchEnabled(true);
+            // Let CCMenu own taps on the floating FG button. A competing targeted
+            // delegate on this parent layer swallowed taps before the menu could act.
             auto* director = cocos2d::CCDirector::sharedDirector();
             const auto size = director->getWinSize();
 
@@ -828,33 +833,6 @@ namespace {
             this->setID("frame-guard-in-game-menu");
             return true;
         }
-
-        void registerWithTouchDispatcher() override {
-            cocos2d::CCDirector::sharedDirector()->getTouchDispatcher()->addTargetedDelegate(this, -128, true);
-        }
-        bool ccTouchBegan(cocos2d::CCTouch* touch, cocos2d::CCEvent*) override {
-            auto p = this->convertToNodeSpace(touch->getLocation());
-            auto* director = cocos2d::CCDirector::sharedDirector();
-            const auto size = director->getWinSize();
-            if (std::abs(p.x - 42.f) > 27.f || std::abs(p.y - (size.height - 34.f)) > 27.f) return false;
-            m_dragging = true;
-            m_lastTouch = touch->getLocation();
-            return true;
-        }
-        void ccTouchMoved(cocos2d::CCTouch* touch, cocos2d::CCEvent*) override {
-            if (!m_dragging) return;
-            auto* director = cocos2d::CCDirector::sharedDirector();
-            const auto size = director->getWinSize();
-            auto now = touch->getLocation();
-            auto delta = now - m_lastTouch;
-            auto pos = this->getPosition() + delta;
-            pos.x = std::clamp(pos.x, -size.width + 40.f, size.width - 40.f);
-            pos.y = std::clamp(pos.y, -size.height + 40.f, size.height - 40.f);
-            this->setPosition(pos);
-            m_lastTouch = now;
-        }
-        void ccTouchEnded(cocos2d::CCTouch*, cocos2d::CCEvent*) override { m_dragging = false; }
-        void ccTouchCancelled(cocos2d::CCTouch*, cocos2d::CCEvent*) override { m_dragging = false; }
 
         void toggleMenu() {
             m_open = !m_open;
@@ -1017,8 +995,6 @@ namespace {
         FrameGuardSlider* m_delaySlider = nullptr;
         cocos2d::CCMenuItemLabel* m_hudButton = nullptr;
         cocos2d::CCMenuItemLabel* m_languageButton = nullptr;
-        cocos2d::CCPoint m_lastTouch = CCPointZero;
-        bool m_dragging = false;
         cocos2d::CCLabelBMFont* m_fpsLabel = nullptr;
         cocos2d::CCLabelBMFont* m_guardLabel = nullptr;
         float m_guardElapsed = 0.f;
