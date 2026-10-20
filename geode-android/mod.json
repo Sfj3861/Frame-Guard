@@ -10,69 +10,83 @@
   "description": "Frame-Guard Android overlay with touch-draggable controls, opacity slider, collision-risk trajectory preview, configurable safety margin, and optional information text.",
   "settings": {
     "show-hitboxes": {
-      "name": "Show hitboxes",
+      "name": "Show hitboxes / Mostrar cajas de colisión",
       "type": "bool",
       "default": true,
-      "description": "Draw collision outlines for supported gameplay objects, including oriented boxes, circles, slopes, portals, pads, and rings; decorative objects are filtered out."
+      "description": "Draw collision outlines for supported gameplay objects. / Dibuja contornos de colisión para objetos compatibles."
     },
     "show-trajectory": {
-      "name": "Show trajectory",
+      "name": "Show trajectory / Mostrar trayectoria",
       "type": "bool",
       "default": true,
-      "description": "Project an approximate future path from current velocity and held input; future collisions and triggers are not simulated."
+      "description": "Project an approximate future path; full future physics and triggers are not simulated yet. / Proyecta una trayectoria futura aproximada; aún no simula toda la física ni los triggers futuros."
     },
     "show-player-bounds": {
-      "name": "Show player bounds",
+      "name": "Show player bounds / Mostrar límites del jugador",
       "type": "bool",
       "default": true,
-      "description": "Show the current player collision boxes for player 1 and player 2."
+      "description": "Show current player collision bounds. / Muestra los límites de colisión actuales del jugador."
     },
     "show-fps": {
-      "name": "Show FPS counter",
+      "name": "Show FPS counter / Mostrar contador de FPS",
       "type": "bool",
       "default": false,
-      "description": "Show a lightweight FPS estimate based on PlayLayer update delta time."
+      "description": "Show an FPS estimate. / Muestra una estimación de FPS."
     },
     "frameguard-enabled": {
-      "name": "Enable FrameGuard telemetry",
+      "name": "Enable FrameGuard / Activar FrameGuard",
       "type": "bool",
       "default": true,
-      "description": "Record input press/release edges with monotonic timestamps and current level-update frame. Does not alter gameplay."
+      "description": "Record input timing for diagnostics; does not currently delay inputs. / Registra los tiempos de entrada para diagnóstico; actualmente no retrasa las entradas."
     },
     "show-frameguard-hud": {
-      "name": "Show FrameGuard HUD",
+      "name": "Show FrameGuard HUD / Mostrar HUD de FrameGuard",
       "type": "bool",
       "default": true,
-      "description": "Display frame counter, input count, and last input timing on screen."
+      "description": "Display timing and input diagnostics. / Muestra diagnósticos de tiempos y entradas."
     },
     "show-info-text": {
-      "name": "Show informational text",
+      "name": "Show informational text / Mostrar texto informativo",
       "type": "bool",
       "default": true,
-      "description": "Show or hide informational HUD text."
+      "description": "Show or hide informational HUD text. / Muestra u oculta el texto informativo."
     },
     "overlay-opacity": {
-      "name": "Overlay opacity",
+      "name": "Overlay opacity / Opacidad de la superposición",
       "type": "int",
       "default": 100,
       "min": 0,
       "max": 100,
-      "description": "Opacity of hitboxes and trajectory, from transparent to fully visible."
+      "description": "Opacity of hitboxes and trajectory. / Opacidad de las cajas de colisión y la trayectoria."
     },
     "safe-margin-ticks": {
-      "name": "Safe margin ticks",
+      "name": "Safe margin ticks / Ticks de margen de seguridad",
       "type": "int",
       "default": 3,
       "min": 0,
       "max": 12,
-      "description": "Display setting for the safety prediction margin. This does not delay or alter gameplay input."
+      "description": "Extra visual padding used by the approximate prediction. / Margen visual adicional usado por la predicción aproximada."
     },
     "toggle-menu": {
-      "name": "Toggle Frame-Guard menu",
+      "name": "Toggle Frame-Guard menu / Abrir o cerrar el menú de Frame-Guard",
       "type": "keybind",
       "default": "F",
       "category": "gameplay",
-      "description": "Toggle the floating Frame-Guard menu with the F key."
+      "description": "Toggle the floating menu. / Abre o cierra el menú flotante."
+    },
+    "ui-spanish": {
+      "name": "Spanish UI / Interfaz en español",
+      "type": "bool",
+      "default": false,
+      "description": "Use Spanish labels in the floating menu. / Usa etiquetas en español en el menú flotante."
+    },
+    "max-delay-ms": {
+      "name": "Maximum input delay / Retraso máximo de entrada",
+      "type": "int",
+      "default": 200,
+      "min": 0,
+      "max": 200,
+      "description": "Configurable time budget in milliseconds. The corresponding tick count is rounded down using effective FPS. This setting does not delay inputs yet. / Límite temporal configurable en milisegundos. Los ticks correspondientes se redondean hacia abajo según los FPS efectivos. Este ajuste todavía no retrasa las entradas."
     }
   }
 }
