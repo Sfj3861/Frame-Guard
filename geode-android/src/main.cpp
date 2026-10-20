@@ -1,5 +1,7 @@
 #include <Geode/Geode.hpp>
-#include <Geode/modify/PlayLayer.hpp>\n#include <Geode/loader/SettingV3.hpp>
+#include <Geode/modify/PlayLayer.hpp>
+#include <Geode/modify/PlayerObject.hpp>
+#include <Geode/loader/SettingV3.hpp>
 #include <deque>
 #include <algorithm>
 #include <chrono>
@@ -67,10 +69,10 @@ namespace {
             auto path = Mod::get()->getSaveDir() / "frameguard-inputs.csv";
             std::ofstream out(path);
             if (!out) return false;
-            out << "frame,timestamp_us,button,edge,delta_us\\n";
+            out << "frame,timestamp_us,button,edge,delta_us\n";
             for (auto const& event : events) {
                 out << event.frame << "," << event.micros << "," << event.button << ","
-                    << (event.pressed ? "PRESS" : "RELEASE") << "," << event.deltaMicros << "\\n";
+                    << (event.pressed ? "PRESS" : "RELEASE") << "," << event.deltaMicros << "\n";
             }
             out.flush();
             return static_cast<bool>(out);
@@ -406,6 +408,17 @@ namespace {
             return true;
         }
 
+        void toggleMenu() {
+            m_open = !m_open;
+            m_hitboxButton->setVisible(m_open);
+            m_playerButton->setVisible(m_open);
+            m_trailButton->setVisible(m_open);
+            m_fpsButton->setVisible(m_open);
+            m_guardButton->setVisible(m_open);
+            m_exportButton->setVisible(m_open);
+            syncLabels();
+        }
+
         void syncLabels() {
             if (m_hitboxButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_hitboxButton->getLabel())->setString(
@@ -459,14 +472,7 @@ namespace {
             return cocos2d::CCMenuItemLabel::create(label, this, callback);
         }
         void onToggleMenu(cocos2d::CCObject*) {
-            m_open = !m_open;
-            m_hitboxButton->setVisible(m_open);
-            m_playerButton->setVisible(m_open);
-            m_trailButton->setVisible(m_open);
-            m_fpsButton->setVisible(m_open);
-            m_guardButton->setVisible(m_open);
-            m_exportButton->setVisible(m_open);
-            syncLabels();
+            toggleMenu();
         }
         void onToggleHitboxes(cocos2d::CCObject*) {
             Mod::get()->setSettingValue<bool>("show-hitboxes",
