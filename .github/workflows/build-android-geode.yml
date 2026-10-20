@@ -12,13 +12,37 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: frame-guard-android-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-android64:
     name: Build Frame-Guard for Android 64-bit
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate mod metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool geode-android/mod.json >/dev/null
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          mod = json.loads(Path("geode-android/mod.json").read_text(encoding="utf-8"))
+          assert mod["id"] == "sfj3861.frame-guard", "Unexpected mod id"
+          assert mod["gd"]["android"] == "2.2081", "Unexpected target Geometry Dash version"
+          assert mod["geode"] == "5.11.2", "Unexpected Geode SDK version"
+          assert mod["version"].startswith("v"), "Expected a v-prefixed version"
+          assert "input-scheduler-enabled" in mod["settings"], "Missing scheduler setting"
+          assert mod["settings"]["input-scheduler-enabled"]["default"] is False, "Experimental scheduler must stay disabled by default"
+          print(f"Validated {mod['name']} {mod['version']} for GD {mod['gd']['android']}")
+          PY
 
       - name: Build .geode package
         id: build
@@ -29,18 +53,29 @@ jobs:
           sdk: given
           build-config: Release
 
-      - name: Prepare package
+      - name: Verify package
         shell: bash
+        env:
+          BUILD_OUTPUT: ${{ steps.build.outputs.build-output }}
         run: |
           set -euo pipefail
-          PACKAGE="$(find "${{ steps.build.outputs.build-output }}" -maxdepth 1 -type f -name '*.geode' -print -quit)"
-          test -n "$PACKAGE"
-          cp "$PACKAGE" Frame-Guard-Android64.geode
+          test -d "$BUILD_OUTPUT"
+          mapfile -t packages < <(find "$BUILD_OUTPUT" -maxdepth 1 -type f -name '*.geode' -print | sort)
+          if [ "${#packages[@]}" -ne 1 ]; then
+            echo "Expected exactly one .geode package in $BUILD_OUTPUT; found ${#packages[@]}" >&2
+            find "$BUILD_OUTPUT" -maxdepth 2 -type f -print >&2 || true
+            exit 1
+          fi
+          cp "${packages[0]}" Frame-Guard-Android64.geode
+          test -s Frame-Guard-Android64.geode
+          unzip -t Frame-Guard-Android64.geode
+          unzip -l Frame-Guard-Android64.geode | grep -q 'mod.json'
+          sha256sum Frame-Guard-Android64.geode
 
       - name: Upload .geode package
         uses: actions/upload-artifact@v4
         with:
-          name: Frame-Guard-Android64-v0.12.0
+          name: Frame-Guard-Android64-v0.13.0
           path: Frame-Guard-Android64.geode
           if-no-files-found: error
           retention-days: 14
@@ -52,7 +87,9 @@ jobs:
           name: Frame-Guard Android64 build ${{ github.run_number }}
           body: |
             Automatically built Android64 .geode package from commit ${{ github.sha }}.
-            This is an unverified development build; test it carefully and remove it if the game crashes or input behaves unexpectedly.
+            Mod version: v0.13.0.
+            This is an unverified development build. The experimental input scheduler is disabled by default.
+            A successful package check is not a substitute for testing on Geometry Dash Android 2.2081.
           prerelease: true
           make_latest: false
           files: Frame-Guard-Android64.geode
