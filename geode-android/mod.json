@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.10.0",
+  "version": "v0.11.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with touch-draggable controls, opacity slider, collision-risk trajectory preview, configurable safety margin, and optional information text.",
+  "description": "Frame-Guard Android overlay with an experimental opt-in input safe-window guard, collision geometry, touch controls, opacity slider, and configurable tick horizon. The guard uses approximate collision prediction and is not a guarantee of safety.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
@@ -65,7 +65,7 @@
       "default": 3,
       "min": 0,
       "max": 12,
-      "description": "Display setting for the safety prediction margin. This does not delay or alter gameplay input."
+      "description": "Number of candidate ticks to inspect, including the current tick (for example, 9 means current tick plus 8 future ticks). Used as a prediction horizon, not a guarantee of safety."
     },
     "toggle-menu": {
       "name": "Toggle Frame-Guard menu",
@@ -73,6 +73,12 @@
       "default": "F",
       "category": "gameplay",
       "description": "Toggle the floating Frame-Guard menu with the F key."
+    },
+    "input-guard-enabled": {
+      "name": "Enable experimental input guard",
+      "type": "bool",
+      "default": false,
+      "description": "Opt-in: may defer Jump presses briefly when approximate collision prediction finds a later clear candidate. Falls back to immediate input when no candidate is found or prediction is unavailable. Physics prediction is incomplete and may be wrong."
     }
   }
 }
