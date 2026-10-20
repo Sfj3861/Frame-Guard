@@ -2,15 +2,15 @@
 
 Target: Geometry Dash Android 2.2081, Geode SDK 5.11.2, Android 64-bit.
 
-## v0.7.0
+## v0.8.0
 
 - **FrameGuard telemetry:** counts PlayLayer update frames and records each player input press/release with a monotonic timestamp, button index, frame index, and time since the preceding input.
 - **Rolling event window:** retains the latest 16 input events in memory for timing diagnostics.
 - **FrameGuard HUD:** displays current frame, input count, and the most recent input timing. Enable or disable it from Geode settings.
 - **Floating menu:** a translucent circular FG control sits at the upper-left. Tap it or press **F** on a connected keyboard to open/close the menu. The F binding is configurable in Geode settings.
-- **Collision-aware hitbox filter:** draws only objects for which Geometry Dash has initialized collision geometry (`m_orientedBox` or a collision radius), excluding decorative sprites and objects without a hitbox. The overlay is diagnostic and does not replace the engine's narrow-phase collision logic.
-- **Player bounds:** independently toggleable player collision bounds.
-- **Movement trail:** short fading trail of observed player positions; it is not a future trajectory prediction.
+- **Show Hitboxes:** draws supported gameplay collision geometry for hazards, solids, slopes, portals, pads, rings, and interactables. Decorative-only objects are filtered out; circles, slope triangles, and rotated boxes are rendered separately. It is a visual diagnostic, not the engine's collision test.
+- **Player hitboxes:** draws the current player collision bounds and oriented box.
+- **Show Trajectory:** a fading trail of historical player collision-box snapshots, including the smaller box, for both players when active. This implementation shows the observed hitbox trail; it does not simulate future physics or predict collisions.
 - **FPS diagnostic:** optional estimate based on PlayLayer update delta time.
 - **Settings sync:** in-game menu toggles and Geode settings use the same settings values. The F keybind defaults to `F` and is configurable.
 - **Non-invasive:** FrameGuard records and displays information only. It does not suppress deaths, alter collisions, change physics, automate inputs, or modify completion state.
@@ -29,6 +29,6 @@ With the Geode SDK and Android toolchain installed:
 The CI workflow builds an Android64 .geode package. A successful compile does not replace testing inside the target game/device; input timestamps, UI positioning, transparency, keyboard behavior, and hitbox filtering still need in-game verification.
 
 
-### v0.7.0 validation note
+### v0.8.0 validation note
 
-The collision overlay now filters out objects without initialized collision geometry. The floating FG control is translucent and the default keyboard shortcut is **F**; the keybind can be changed in Geode settings.
+Hitbox rendering now checks supported gameplay object types and valid geometry, and the trajectory overlay draws historical player hitbox outlines instead of only connecting player-center positions. The floating FG control is translucent and the default keyboard shortcut is **F**; the keybind can be changed in Geode settings. Build and in-game validation are still required before calling this release tested.
