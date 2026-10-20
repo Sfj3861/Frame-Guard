@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.9.0",
+  "version": "v0.10.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with collision hitboxes, approximate forward trajectory projection, player bounds, FPS, and input timing telemetry.",
+  "description": "Frame-Guard Android overlay with touch-draggable controls, opacity slider, collision-risk trajectory preview, configurable safety margin, and optional information text.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
