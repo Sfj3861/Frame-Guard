@@ -183,14 +183,12 @@ namespace {
                     for (auto* object : m_collisionObjects) {
                         if (!object) continue;
                         const auto rect = collisionRect(object);
-                        const float ox = object->m_positionX;
-                        const float oy = object->m_positionY;
-                        const float radius = std::max(8.f, object->m_objectRadius *
-                            std::max<float>(object->m_scaleX, object->m_scaleY));
-                        if (ox + radius < minX || ox - radius > maxX ||
-                            oy + radius < minY || oy - radius > maxY) continue;
-                        if (rect.size.width > 0.f && rect.size.height > 0.f)
-                            drawObjectGeometry(object);
+                        if (rect.size.width <= 0.f || rect.size.height <= 0.f) continue;
+                        // Cull by the actual collision rectangle, not object center/radius.
+                        // This keeps long rectangles and offset hitboxes visible at screen edges.
+                        if (rect.getMaxX() < minX || rect.getMinX() > maxX ||
+                            rect.getMaxY() < minY || rect.getMinY() > maxY) continue;
+                        drawObjectGeometry(object);
                     }
                 }
             }
@@ -478,9 +476,11 @@ namespace {
         void drawPrediction(PlayerObject* player, bool held, cocos2d::ccColor4F colour) {
             if (!player || player->m_isDead) return;
 
-            constexpr int iterations = 120;
-            constexpr float step = 0.5f;
-            constexpr int boxEvery = 8;
+            // Limit prediction to the next eight update steps; each outline is one step.
+            // The observed trail above is exact sampled history; future motion remains estimated.
+            constexpr int iterations = 8;
+            constexpr float step = 1.0f;
+            constexpr int boxEvery = 1;
             auto position = player->getPosition();
             // Build a local collision set once per frame instead of scanning every
             // object for every projected point. This reduces work on long levels.
