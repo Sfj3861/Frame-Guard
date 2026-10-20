@@ -170,7 +170,7 @@ namespace {
                     // Only draw geometry near the active camera/player. Drawing every
                     // object in a full level every frame caused avoidable CPU/GPU load.
                     const auto* player = layer->m_player1;
-                    const auto center = player ? player->getPosition() : cocos2d::CCPointZero;
+                    const cocos2d::CCPoint center = player ? cocos2d::CCPoint(player->m_positionX, player->m_positionY) : cocos2d::CCPointZero;
                     const float minX = center.x - 220.f;
                     const float maxX = center.x + 1100.f;
                     const float minY = center.y - 520.f;
