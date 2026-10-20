@@ -705,6 +705,7 @@ namespace {
             m_trailButton = makeItem("", menu_selector(FrameGuardMenu::onToggleTrail));
             m_fpsButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFPS));
             m_guardButton = makeItem("", menu_selector(FrameGuardMenu::onToggleFrameGuard));
+            m_schedulerButton = makeItem("", menu_selector(FrameGuardMenu::onToggleScheduler));
             m_exportButton = makeItem("Export CSV", menu_selector(FrameGuardMenu::onExportCSV));
             m_infoButton = makeItem("", menu_selector(FrameGuardMenu::onToggleInfo));
             m_hudButton = makeItem("", menu_selector(FrameGuardMenu::onToggleHUD));
@@ -722,7 +723,7 @@ namespace {
                     Mod::get()->setSettingValue<int>("max-delay-ms", value);
                 });
             if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton ||
-                !m_fpsButton || !m_guardButton || !m_exportButton || !m_infoButton ||
+                !m_fpsButton || !m_guardButton || !m_schedulerButton || !m_exportButton || !m_infoButton ||
                 !m_opacitySlider || !m_marginSlider || !m_hudButton || !m_languageButton || !m_delaySlider) return false;
             this->addEventListener(
                 KeybindSettingPressedEventV3(Mod::get(), "toggle-menu"),
@@ -737,19 +738,21 @@ namespace {
             m_trailButton->setPosition(ccp(91.f, size.height - 112.f));
             m_fpsButton->setPosition(ccp(91.f, size.height - 136.f));
             m_guardButton->setPosition(ccp(91.f, size.height - 160.f));
-            m_exportButton->setPosition(ccp(91.f, size.height - 184.f));
-            m_infoButton->setPosition(ccp(91.f, size.height - 208.f));
-            m_hudButton->setPosition(ccp(91.f, size.height - 232.f));
-            m_languageButton->setPosition(ccp(91.f, size.height - 256.f));
-            m_opacitySlider->setPosition(ccp(112.f, size.height - 290.f));
-            m_marginSlider->setPosition(ccp(112.f, size.height - 326.f));
-            m_delaySlider->setPosition(ccp(112.f, size.height - 362.f));
+            m_schedulerButton->setPosition(ccp(91.f, size.height - 184.f));
+            m_exportButton->setPosition(ccp(91.f, size.height - 208.f));
+            m_infoButton->setPosition(ccp(91.f, size.height - 232.f));
+            m_hudButton->setPosition(ccp(91.f, size.height - 256.f));
+            m_languageButton->setPosition(ccp(91.f, size.height - 280.f));
+            m_opacitySlider->setPosition(ccp(112.f, size.height - 314.f));
+            m_marginSlider->setPosition(ccp(112.f, size.height - 350.f));
+            m_delaySlider->setPosition(ccp(112.f, size.height - 386.f));
             m_menu->addChild(m_openButton);
             m_menu->addChild(m_hitboxButton);
             m_menu->addChild(m_playerButton);
             m_menu->addChild(m_trailButton);
             m_menu->addChild(m_fpsButton);
             m_menu->addChild(m_guardButton);
+            m_menu->addChild(m_schedulerButton);
             m_menu->addChild(m_exportButton);
             m_menu->addChild(m_infoButton);
             m_menu->addChild(m_hudButton);
@@ -762,6 +765,7 @@ namespace {
             m_trailButton->setVisible(false);
             m_fpsButton->setVisible(false);
             m_guardButton->setVisible(false);
+            m_schedulerButton->setVisible(false);
             m_exportButton->setVisible(false);
             m_infoButton->setVisible(false);
             m_hudButton->setVisible(false);
@@ -824,6 +828,7 @@ namespace {
             m_trailButton->setVisible(m_open);
             m_fpsButton->setVisible(m_open);
             m_guardButton->setVisible(m_open);
+            m_schedulerButton->setVisible(m_open);
             m_exportButton->setVisible(m_open);
             m_infoButton->setVisible(m_open);
             m_hudButton->setVisible(m_open);
@@ -865,6 +870,9 @@ namespace {
             if (m_guardButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_guardButton->getLabel())->setString(
                     toggleText("FrameGuard", "FrameGuard", Mod::get()->getSettingValue<bool>("frameguard-enabled")).c_str());
+            if (m_schedulerButton)
+                static_cast<cocos2d::CCLabelBMFont*>(m_schedulerButton->getLabel())->setString(
+                    toggleText("Smart input delay", "Espera inteligente", Mod::get()->getSettingValue<bool>("input-scheduler-enabled")).c_str());
             if (m_guardLabel)
                 m_guardLabel->setVisible(showInfo && Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
         }
@@ -943,6 +951,11 @@ namespace {
                 !Mod::get()->getSettingValue<bool>("frameguard-enabled"));
             syncLabels();
         }
+        void onToggleScheduler(cocos2d::CCObject*) {
+            Mod::get()->setSettingValue<bool>("input-scheduler-enabled",
+                !Mod::get()->getSettingValue<bool>("input-scheduler-enabled"));
+            syncLabels();
+        }
         void onExportCSV(cocos2d::CCObject*) {
             if (FrameGuardTelemetry::exportCSV()) {
                 log::info("FrameGuard: exported recent input events to {}",
@@ -961,6 +974,7 @@ namespace {
         cocos2d::CCMenuItemLabel* m_trailButton = nullptr;
         cocos2d::CCMenuItemLabel* m_fpsButton = nullptr;
         cocos2d::CCMenuItemLabel* m_guardButton = nullptr;
+        cocos2d::CCMenuItemLabel* m_schedulerButton = nullptr;
         cocos2d::CCMenuItemLabel* m_exportButton = nullptr;
         cocos2d::CCMenuItemLabel* m_infoButton = nullptr;
         FrameGuardSlider* m_opacitySlider = nullptr;
