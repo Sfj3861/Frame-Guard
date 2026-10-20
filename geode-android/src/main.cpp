@@ -1090,10 +1090,19 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
         PlayLayer::postUpdate(dt);
         if (!m_fields->overlay) {
             m_fields->overlay = FrameGuardOverlay::create();
-            // Match QOLMod's layer placement: render in the game-layer coordinate
-            // space, immediately below the UI, so geometry tracks level scrolling.
-            if (m_fields->overlay)
-                this->insertBefore(m_fields->overlay, m_uiLayer);
+            // Collision rectangles, object positions, player positions and projected
+            // trajectory are expressed in object-layer coordinates. Parent the overlay
+            // to that same transformed layer so camera scrolling/zoom applies exactly
+            // once to both the level geometry and our drawings. The menu stays on
+            // m_uiLayer separately, so it remains screen-space.
+            if (m_fields->overlay && m_objectLayer)
+                m_objectLayer->addChild(m_fields->overlay, kOverlayZ);
+            else if (m_fields->overlay) {
+                // Do not render world-space geometry in screen-space if the world
+                // layer is unavailable; that would reproduce the camera-lock bug.
+                m_fields->overlay->removeFromParentAndCleanup(true);
+                m_fields->overlay = nullptr;
+            }
         }
         if (m_fields->overlay) m_fields->overlay->refresh(this);
         if (!m_fields->menu && m_uiLayer) {
