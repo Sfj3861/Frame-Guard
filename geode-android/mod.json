@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.12.0",
+  "version": "v0.13.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with collision geometry, approximate visual path forecast, input telemetry, touch controls, opacity slider, and configurable prediction horizon. Never delays or automates inputs.",
+  "description": "Frame-Guard Android overlay with collision geometry, approximate trajectory projection, input telemetry and an experimental continuous-input timing-window estimate. Never delays or automates inputs.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
@@ -65,7 +65,7 @@
       "default": 3,
       "min": 0,
       "max": 12,
-      "description": "Number of future ticks to inspect for projected hazard contact. The overlay reports estimated ticks until contact and lead time; this is approximate and not a guaranteed safe input window."
+      "description": "Prediction horizon in ticks (1-12). In supported continuous-input modes, estimates candidate press/release timing by simplified trajectory simulation. Not exact GD physics or a guaranteed safe window."
     },
     "toggle-menu": {
       "name": "Toggle Frame-Guard menu",
@@ -75,10 +75,10 @@
       "description": "Toggle the floating Frame-Guard menu with the F key."
     },
     "show-safe-window": {
-      "name": "Show hazard timing label",
+      "name": "Show input timing estimate",
       "type": "bool",
       "default": false,
-      "description": "Show estimated ticks until a hazard along the projected current path and the remaining lead ticks. This is not a guaranteed safe click window and never delays or changes inputs."
+      "description": "Estimate a candidate press/release timing window for ship, wave and swing-like continuous-input modes. Other modes show approximate hazard lead time. Simplified model only; never delays or changes inputs."
     }
   }
 }
