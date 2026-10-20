@@ -25,6 +25,12 @@ The overlay and trajectory are diagnostic approximations. They do not run Geomet
 - [Published Android64 prereleases](https://github.com/Sfj3861/Frame-Guard/releases)
 - [Geode mod README and installation notes](geode-android/README.md)
 
+Each published package includes a `.sha256` checksum alongside the `.geode` file. On Linux, verify the download from the same folder with:
+
+```sh
+sha256sum -c Frame-Guard-Android64.geode.sha256
+```
+
 A successful CI compile verifies that the native library and package can be built and that the package archive is structurally valid. It does **not** replace on-device testing in the exact target game/version. Back up existing mod settings and remove the mod if the game crashes or inputs behave unexpectedly.
 
 To run the project's offline consistency checks without an Android SDK, from the repository root run:
