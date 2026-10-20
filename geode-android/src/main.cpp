@@ -1099,7 +1099,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard v0.14.0 loaded: live collision geometry, actual player-box history, local trajectory collision cache and update/input telemetry. Inputs are never delayed or automated; forward trajectory remains an estimate.");
+    log::info("Frame-Guard v0.14.1 loaded: live collision geometry, actual player-box history, rectangle-based hitbox culling and eight-step trajectory estimate. Inputs are never delayed or automated.");
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
