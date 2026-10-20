@@ -143,6 +143,7 @@ namespace {
             m_trail1.clear();
             m_trail2.clear();
             m_collisionObjects.clear();
+            m_hazardObjects.clear();
             m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
         }
 
@@ -163,11 +164,14 @@ namespace {
                 const auto count = layer->m_objects->count();
                 if (count != m_cachedObjectCount) {
                     m_collisionObjects.clear();
+                    m_hazardObjects.clear();
                     m_collisionObjects.reserve(count);
+                    m_hazardObjects.reserve(std::min<std::size_t>(count, 256));
                     for (unsigned int i = 0; i < count; ++i) {
                         auto* object = typeinfo_cast<GameObject*>(layer->m_objects->objectAtIndex(i));
-                        if (object && isCollisionObject(object))
-                            m_collisionObjects.push_back(object);
+                        if (!object || !isCollisionObject(object)) continue;
+                        m_collisionObjects.push_back(object);
+                        if (isHazardObject(object)) m_hazardObjects.push_back(object);
                     }
                     m_cachedObjectCount = count;
                 }
@@ -274,7 +278,7 @@ namespace {
         // It does not emulate GD's full physics, collision resolution, triggers or portals.
         bool isInputDelayPathClear(PlayerObject* player, int horizon, int delayTicks, bool targetHeld) const {
             if (!player || player->m_isDead) return false;
-            if (m_collisionObjects.empty()) return true;
+            if (m_hazardObjects.empty()) return true;
             horizon = std::clamp(horizon, 1, 12);
             delayTicks = std::clamp(delayTicks, 0, horizon - 1);
             auto pos = player->getPosition();
@@ -292,12 +296,8 @@ namespace {
 
             auto clearOfHazards = [&](float px, float py) {
                 cocos2d::CCRect box(px - hw, py - hh, hw * 2.f, hh * 2.f);
-                for (auto* object : m_collisionObjects) {
-                    if (!object) continue;
-                    const bool hazard = typeIs(object, {
-                        GameObjectType::Hazard, GameObjectType::AnimatedHazard
-                    }) || (object->m_objectType == GameObjectType::Slope && object->m_slopeIsHazard);
-                    if (hazard && box.intersectsRect(collisionRect(object))) return false;
+                for (auto* object : m_hazardObjects) {
+                    if (object && box.intersectsRect(collisionRect(object))) return false;
                 }
                 return true;
             };
@@ -319,7 +319,7 @@ namespace {
 
         // Current-input lead time for modes without a supported input-window model.
         int findHazardCollisionTick(PlayerObject* player, int horizon) const {
-            if (!player || player->m_isDead || m_collisionObjects.empty()) return -1;
+            if (!player || player->m_isDead || m_hazardObjects.empty()) return -1;
             horizon = std::clamp(horizon, 1, 12);
             auto pos = player->getPosition();
             float x = pos.x;
@@ -343,12 +343,8 @@ namespace {
                 x += static_cast<float>(vx * step);
                 y += static_cast<float>(vy * step);
                 cocos2d::CCRect box(x - hw, y - hh, hw * 2.f, hh * 2.f);
-                for (auto* object : m_collisionObjects) {
-                    if (!object) continue;
-                    const bool hazard = typeIs(object, {
-                        GameObjectType::Hazard, GameObjectType::AnimatedHazard
-                    }) || (object->m_objectType == GameObjectType::Slope && object->m_slopeIsHazard);
-                    if (hazard && box.intersectsRect(collisionRect(object))) return tick;
+                for (auto* object : m_hazardObjects) {
+                    if (object && box.intersectsRect(collisionRect(object))) return tick;
                 }
             }
             return -1;
@@ -361,6 +357,12 @@ namespace {
     private:
         static bool typeIs(GameObject* obj, std::initializer_list<GameObjectType> types) {
             return std::find(types.begin(), types.end(), obj->m_objectType) != types.end();
+        }
+
+        static bool isHazardObject(GameObject* obj) {
+            return obj && (typeIs(obj, {
+                GameObjectType::Hazard, GameObjectType::AnimatedHazard
+            }) || (obj->m_objectType == GameObjectType::Slope && obj->m_slopeIsHazard));
         }
 
         static bool isCollisionObject(GameObject* obj) {
@@ -677,6 +679,7 @@ namespace {
         std::deque<PlayerSnapshot> m_trail1;
         std::deque<PlayerSnapshot> m_trail2;
         std::vector<GameObject*> m_collisionObjects;
+        std::vector<GameObject*> m_hazardObjects;
         unsigned int m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
     };
 
