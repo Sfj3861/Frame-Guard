@@ -477,7 +477,7 @@ namespace {
         unsigned int m_cachedObjectCount = std::numeric_limits<unsigned int>::max();
     };
 
-    class FrameGuardSlider final : public cocos2d::CCNode {
+    class FrameGuardSlider final : public cocos2d::CCLayer {
     public:
         using ChangeCallback = std::function<void(int)>;
         static FrameGuardSlider* create(char const* title, char const* unit, int minimum,
@@ -492,7 +492,8 @@ namespace {
         }
         bool initSlider(char const* title, char const* unit, int minimum, int maximum,
             int initial, ChangeCallback callback) {
-            if (!CCNode::init()) return false;
+            if (!CCLayer::init()) return false;
+            this->setTouchEnabled(true);
             m_title = title;
             m_unit = unit;
             m_min = minimum;
@@ -509,26 +510,25 @@ namespace {
             m_label->setScale(0.34f);
             m_label->setPosition(ccp(0.f, 27.f));
             this->addChild(m_label);
-            auto* listener = cocos2d::EventListenerTouchOneByOne::create();
-            if (!listener) return false;
-            listener->setSwallowTouches(false);
-            listener->onTouchBegan = [this](cocos2d::CCTouch* touch, cocos2d::CCEvent*) {
-                auto p = this->convertToNodeSpace(touch->getLocation());
-                if (p.x < 0.f || p.x > 190.f || p.y < 0.f || p.y > 23.f) return false;
-                setFromX(p.x);
-                m_dragging = true;
-                return true;
-            };
-            listener->onTouchMoved = [this](cocos2d::CCTouch* touch, cocos2d::CCEvent*) {
-                if (m_dragging) setFromX(this->convertToNodeSpace(touch->getLocation()).x);
-            };
-            listener->onTouchEnded = [this](cocos2d::CCTouch*, cocos2d::CCEvent*) { m_dragging = false; };
-            listener->onTouchCancelled = [this](cocos2d::CCTouch*, cocos2d::CCEvent*) { m_dragging = false; };
-            cocos2d::CCDirector::sharedDirector()->getEventDispatcher()
-                ->addEventListenerWithSceneGraphPriority(listener, this);
             redraw();
             return true;
         }
+        void registerWithTouchDispatcher() override {
+            cocos2d::CCDirector::sharedDirector()->getTouchDispatcher()->addTargetedDelegate(this, -128, true);
+        }
+        bool ccTouchBegan(cocos2d::CCTouch* touch, cocos2d::CCEvent*) override {
+            auto p = this->convertToNodeSpace(touch->getLocation());
+            if (!this->isVisible() || p.x < 0.f || p.x > 190.f || p.y < 0.f || p.y > 23.f) return false;
+            setFromX(p.x);
+            m_dragging = true;
+            return true;
+        }
+        void ccTouchMoved(cocos2d::CCTouch* touch, cocos2d::CCEvent*) override {
+            if (m_dragging) setFromX(this->convertToNodeSpace(touch->getLocation()).x);
+        }
+        void ccTouchEnded(cocos2d::CCTouch*, cocos2d::CCEvent*) override { m_dragging = false; }
+        void ccTouchCancelled(cocos2d::CCTouch*, cocos2d::CCEvent*) override { m_dragging = false; }
+
         int getValue() const { return m_value; }
         void setValue(int value) {
             value = std::clamp(value, m_min, m_max);
@@ -562,7 +562,7 @@ namespace {
         bool m_dragging = false;
     };
 
-    class FrameGuardMenu final : public cocos2d::CCNode {
+    class FrameGuardMenu final : public cocos2d::CCLayer {
     public:
         static FrameGuardMenu* create() {
             auto* node = new FrameGuardMenu();
@@ -575,7 +575,8 @@ namespace {
         }
 
         bool init() override {
-            if (!CCNode::init()) return false;
+            if (!CCLayer::init()) return false;
+            this->setTouchEnabled(true);
             auto* director = cocos2d::CCDirector::sharedDirector();
             const auto size = director->getWinSize();
 
@@ -623,31 +624,6 @@ namespace {
             if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton ||
                 !m_fpsButton || !m_guardButton || !m_exportButton || !m_infoButton ||
                 !m_opacitySlider || !m_marginSlider) return false;
-            // Drag the FG handle to reposition the whole touch menu.
-            auto* dragListener = cocos2d::EventListenerTouchOneByOne::create();
-            if (dragListener) {
-                dragListener->setSwallowTouches(false);
-                dragListener->onTouchBegan = [this, size](cocos2d::CCTouch* touch, cocos2d::CCEvent*) {
-                    auto p = this->convertToNodeSpace(touch->getLocation());
-                    if (std::abs(p.x - 42.f) > 27.f || std::abs(p.y - (size.height - 34.f)) > 27.f) return false;
-                    m_dragging = true;
-                    m_lastTouch = touch->getLocation();
-                    return true;
-                };
-                dragListener->onTouchMoved = [this, size](cocos2d::CCTouch* touch, cocos2d::CCEvent*) {
-                    if (!m_dragging) return;
-                    auto now = touch->getLocation();
-                    auto delta = now - m_lastTouch;
-                    auto pos = this->getPosition() + delta;
-                    pos.x = std::clamp(pos.x, -size.width + 40.f, size.width - 40.f);
-                    pos.y = std::clamp(pos.y, -size.height + 40.f, size.height - 40.f);
-                    this->setPosition(pos);
-                    m_lastTouch = now;
-                };
-                dragListener->onTouchEnded = [this](cocos2d::CCTouch*, cocos2d::CCEvent*) { m_dragging = false; };
-                dragListener->onTouchCancelled = [this](cocos2d::CCTouch*, cocos2d::CCEvent*) { m_dragging = false; };
-                cocos2d::CCDirector::sharedDirector()->getEventDispatcher()->addEventListenerWithSceneGraphPriority(dragListener, this);
-            }
             this->addEventListener(
                 KeybindSettingPressedEventV3(Mod::get(), "toggle-menu"),
                 [this](Keybind const&, bool down, bool repeat, double) {
@@ -704,6 +680,33 @@ namespace {
             this->setID("frame-guard-in-game-menu");
             return true;
         }
+
+        void registerWithTouchDispatcher() override {
+            cocos2d::CCDirector::sharedDirector()->getTouchDispatcher()->addTargetedDelegate(this, -128, true);
+        }
+        bool ccTouchBegan(cocos2d::CCTouch* touch, cocos2d::CCEvent*) override {
+            auto p = this->convertToNodeSpace(touch->getLocation());
+            auto* director = cocos2d::CCDirector::sharedDirector();
+            const auto size = director->getWinSize();
+            if (std::abs(p.x - 42.f) > 27.f || std::abs(p.y - (size.height - 34.f)) > 27.f) return false;
+            m_dragging = true;
+            m_lastTouch = touch->getLocation();
+            return true;
+        }
+        void ccTouchMoved(cocos2d::CCTouch* touch, cocos2d::CCEvent*) override {
+            if (!m_dragging) return;
+            auto* director = cocos2d::CCDirector::sharedDirector();
+            const auto size = director->getWinSize();
+            auto now = touch->getLocation();
+            auto delta = now - m_lastTouch;
+            auto pos = this->getPosition() + delta;
+            pos.x = std::clamp(pos.x, -size.width + 40.f, size.width - 40.f);
+            pos.y = std::clamp(pos.y, -size.height + 40.f, size.height - 40.f);
+            this->setPosition(pos);
+            m_lastTouch = now;
+        }
+        void ccTouchEnded(cocos2d::CCTouch*, cocos2d::CCEvent*) override { m_dragging = false; }
+        void ccTouchCancelled(cocos2d::CCTouch*, cocos2d::CCEvent*) override { m_dragging = false; }
 
         void toggleMenu() {
             m_open = !m_open;
