@@ -663,6 +663,14 @@ namespace {
         void ccTouchCancelled(cocos2d::CCTouch*, cocos2d::CCEvent*) override { m_dragging = false; }
 
         int getValue() const { return m_value; }
+        void setCaption(char const* title, char const* unit) {
+            const std::string nextTitle = title ? title : "";
+            const std::string nextUnit = unit ? unit : "";
+            if (m_title == nextTitle && m_unit == nextUnit) return;
+            m_title = nextTitle;
+            m_unit = nextUnit;
+            redraw();
+        }
         void setValue(int value) {
             value = std::clamp(value, m_min, m_max);
             if (value == m_value) return;
@@ -871,9 +879,21 @@ namespace {
             if (m_infoButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_infoButton->getLabel())->setString(
                     toggleText("Info text", "Texto informativo", showInfo).c_str());
-            if (m_opacitySlider) m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
-            if (m_marginSlider) m_marginSlider->setValue(Mod::get()->getSettingValue<int>("safe-margin-ticks"));
-            if (m_delaySlider) m_delaySlider->setValue(Mod::get()->getSettingValue<int>("max-delay-ms"));
+            if (m_opacitySlider) {
+                m_opacitySlider->setCaption(tr("Opacity", "Opacidad"), "%");
+                m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
+            }
+            if (m_marginSlider) {
+                m_marginSlider->setCaption(tr("Safe margin", "Margen seguro"), " ticks");
+                m_marginSlider->setValue(Mod::get()->getSettingValue<int>("safe-margin-ticks"));
+            }
+            if (m_delaySlider) {
+                m_delaySlider->setCaption(tr("Delay budget", "Límite de espera"), " ms");
+                m_delaySlider->setValue(Mod::get()->getSettingValue<int>("max-delay-ms"));
+            }
+            if (m_exportButton)
+                static_cast<cocos2d::CCLabelBMFont*>(m_exportButton->getLabel())->setString(
+                    tr("Export CSV", "Exportar CSV"));
             if (m_hudButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_hudButton->getLabel())->setString(
                     toggleText("FrameGuard HUD", "HUD de FrameGuard", Mod::get()->getSettingValue<bool>("show-frameguard-hud")).c_str());
