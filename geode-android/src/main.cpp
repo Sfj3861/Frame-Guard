@@ -117,7 +117,7 @@ namespace {
     static PlayLayer* g_activePlayLayer = nullptr;
     static float g_effectiveFPS = 60.f;
 
-    static int predictedCollisionFrame(PlayLayer* layer, PlayerObject* player, bool held, int horizon) {
+    static int predictedCollisionFrame(PlayLayer* layer, PlayerObject* player, bool held, int horizon, bool jumpEdge = false) {
         if (!layer || !player || player->m_isDead || !layer->m_objects) return horizon + 1;
         auto pos = player->getPosition();
         float x = pos.x, y = pos.y;
@@ -130,8 +130,12 @@ namespace {
         const float hh = std::max(2.f, rect.size.height * .5f);
         const float dt = 1.f;
         for (int tick = 1; tick <= horizon; ++tick) {
-            if (player->m_isDart) vy = held ? 6.0 : -6.0;
-            else if (player->m_isShip || player->m_isBird || player->m_isSwing)
+            if (tick == 1 && jumpEdge && !player->m_isShip && !player->m_isDart && !player->m_isSwing) {
+                // Approximate the immediate vertical impulse from a fresh jump edge.
+                // Mode-specific rings, ball/spider flips, and ground checks are not modeled.
+                vy = 10.0 * gravitySign;
+            } else if (player->m_isDart) vy = held ? 6.0 : -6.0;
+            else if (player->m_isShip || player->m_isSwing)
                 vy += (held ? .72 : -.72) * gravitySign;
             else {
                 vy -= gravity * gravitySign * .6;
@@ -172,7 +176,8 @@ namespace {
         if (currentHeld == input.pressed) return false;
         const int horizon = std::min(12, budget + 2);
         const int currentRisk = predictedCollisionFrame(layer, input.player, currentHeld, horizon);
-        const int changedRisk = predictedCollisionFrame(layer, input.player, input.pressed, horizon);
+        const int changedRisk = predictedCollisionFrame(layer, input.player, input.pressed, horizon,
+            input.pressed && !currentHeld);
         // If the unchanged trajectory is already about to collide, never wait.
         // Otherwise defer one frame only when the requested edge introduces an
         // earlier predicted collision; the decision is recalculated next frame.
