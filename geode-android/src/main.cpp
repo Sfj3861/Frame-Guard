@@ -155,6 +155,11 @@ namespace {
         return horizon + 1;
     }
 
+    static bool hasPendingInputFor(PlayerObject* player) {
+        return std::any_of(g_pendingInputs.begin(), g_pendingInputs.end(),
+            [player](PendingInput const& input) { return input.player == player; });
+    }
+
     static bool shouldWaitForInput(PlayLayer* layer, PendingInput const& input) {
         if (!Mod::get()->getSettingValue<bool>("input-scheduler-enabled") ||
             !Mod::get()->getSettingValue<bool>("frameguard-enabled") ||
@@ -1051,7 +1056,7 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
                 FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, true);
                 FrameGuardTelemetry::record(button, true);
             };
-            if (shouldWaitForInput(g_activePlayLayer, pending)) {
+            if (hasPendingInputFor(this) || shouldWaitForInput(g_activePlayLayer, pending)) {
                 g_pendingInputs.push_back(std::move(pending));
                 return true;
             }
@@ -1077,7 +1082,7 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
                 FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
                 FrameGuardTelemetry::record(button, false);
             };
-            if (shouldWaitForInput(g_activePlayLayer, pending)) {
+            if (hasPendingInputFor(this) || shouldWaitForInput(g_activePlayLayer, pending)) {
                 g_pendingInputs.push_back(std::move(pending));
                 return true;
             }
