@@ -167,11 +167,24 @@ namespace {
                     m_cachedObjectCount = count;
                 }
                 if (showHitboxes) {
+                    // Only draw geometry near the active camera/player. Drawing every
+                    // object in a full level every frame caused avoidable CPU/GPU load.
+                    const auto* player = layer->m_player1;
+                    const auto center = player ? player->getPosition() : cocos2d::CCPointZero;
+                    const float minX = center.x - 220.f;
+                    const float maxX = center.x + 1100.f;
+                    const float minY = center.y - 520.f;
+                    const float maxY = center.y + 520.f;
                     for (auto* object : m_collisionObjects) {
                         if (!object) continue;
                         const auto rect = collisionRect(object);
-                        if (object->m_objectRadius > 0.f ||
-                            (rect.size.width > 0.f && rect.size.height > 0.f))
+                        const float ox = object->m_positionX;
+                        const float oy = object->m_positionY;
+                        const float radius = std::max(8.f, object->m_objectRadius *
+                            std::max<float>(object->m_scaleX, object->m_scaleY));
+                        if (ox + radius < minX || ox - radius > maxX ||
+                            oy + radius < minY || oy - radius > maxY) continue;
+                        if (rect.size.width > 0.f && rect.size.height > 0.f)
                             drawObjectGeometry(object);
                     }
                 }
@@ -451,8 +464,24 @@ namespace {
 
             constexpr int iterations = 120;
             constexpr float step = 0.5f;
-            constexpr int boxEvery = 6;
+            constexpr int boxEvery = 8;
             auto position = player->getPosition();
+            // Build a local collision set once per frame instead of scanning every
+            // object for every projected point. This reduces work on long levels.
+            std::vector<GameObject*> nearbyObjects;
+            nearbyObjects.reserve(std::min<std::size_t>(m_collisionObjects.size(), 256));
+            for (auto* object : m_collisionObjects) {
+                if (!object || !typeIs(object, {
+                    GameObjectType::Hazard, GameObjectType::AnimatedHazard,
+                    GameObjectType::Solid, GameObjectType::Slope
+                })) continue;
+                const auto rect = collisionRect(object);
+                if (rect.getMaxX() < position.x - 24.f ||
+                    rect.getMinX() > position.x + 980.f ||
+                    rect.getMaxY() < position.y - 460.f ||
+                    rect.getMinY() > position.y + 460.f) continue;
+                nearbyObjects.push_back(object);
+            }
             float x = position.x;
             float y = position.y;
             double xVelocity = player->getCurrentXVelocity();
@@ -487,11 +516,8 @@ namespace {
                     x - halfWidth - safetyPad, y - halfHeight - safetyPad,
                     halfWidth * 2.f + safetyPad * 2.f, halfHeight * 2.f + safetyPad * 2.f);
                 bool unsafe = false;
-                for (auto* object : m_collisionObjects) {
-                    if (!object || !typeIs(object, {
-                        GameObjectType::Hazard, GameObjectType::AnimatedHazard,
-                        GameObjectType::Solid, GameObjectType::Slope
-                    })) continue;
+                for (auto* object : nearbyObjects) {
+                    if (!object) continue;
                     if (projectedBox.intersectsRect(collisionRect(object))) {
                         unsafe = true;
                         break;
@@ -1052,7 +1078,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard v0.12.0 loaded: visual collision geometry, approximate path forecast, input telemetry, FPS and in-game controls. Inputs are never delayed or automated.");
+    log::info("Frame-Guard v0.13.1 loaded: optimized visible hitboxes, local trajectory collision cache, input telemetry and FPS. Inputs are never delayed or automated.");
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
