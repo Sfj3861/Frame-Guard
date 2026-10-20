@@ -2,17 +2,17 @@
 
 Target: Geometry Dash Android 2.2081, Geode SDK 5.11.2, Android 64-bit.
 
-## v0.6.0
+## v0.7.0
 
 - **FrameGuard telemetry:** counts PlayLayer update frames and records each player input press/release with a monotonic timestamp, button index, frame index, and time since the preceding input.
 - **Rolling event window:** retains the latest 16 input events in memory for timing diagnostics.
 - **FrameGuard HUD:** displays current frame, input count, and the most recent input timing. Enable or disable it from Geode settings.
-- **FrameGuard toggle:** the in-level FG menu can turn telemetry recording on/off; the same setting is available in Geode's mod settings.
-- **Object collision overlay:** draws Geometry Dash object rectangles, circles where available, and slope outlines, with different colors for hazards and solids. This is diagnostic visualization, not a claim that every drawn outline exactly reproduces the engine's narrow-phase collision algorithm.
+- **Floating menu:** a translucent circular FG control sits at the upper-left. Tap it or press **F** on a connected keyboard to open/close the menu. The F binding is configurable in Geode settings.
+- **Collision-aware hitbox filter:** draws only objects for which Geometry Dash has initialized collision geometry (`m_orientedBox` or a collision radius), excluding decorative sprites and objects without a hitbox. The overlay is diagnostic and does not replace the engine's narrow-phase collision logic.
 - **Player bounds:** independently toggleable player collision bounds.
 - **Movement trail:** short fading trail of observed player positions; it is not a future trajectory prediction.
 - **FPS diagnostic:** optional estimate based on PlayLayer update delta time.
-- **Settings sync:** in-game menu toggles and Geode settings use the same settings values.
+- **Settings sync:** in-game menu toggles and Geode settings use the same settings values. The F keybind defaults to `F` and is configurable.
 - **Non-invasive:** FrameGuard records and displays information only. It does not suppress deaths, alter collisions, change physics, automate inputs, or modify completion state.
 
 ## Installation
@@ -26,4 +26,4 @@ With the Geode SDK and Android toolchain installed:
     geode sdk install-binaries -p android64
     geode build -p android64
 
-The CI workflow builds an Android64 .geode package. A successful compile does not replace testing inside the target game/device; input timestamps, UI positioning, and overlays still need in-game verification.
+The CI workflow builds an Android64 .geode package. A successful compile does not replace testing inside the target game/device; input timestamps, UI positioning, transparency, keyboard behavior, and hitbox filtering still need in-game verification.
