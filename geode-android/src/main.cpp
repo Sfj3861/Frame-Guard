@@ -594,7 +594,17 @@ namespace {
                     const double thrust = held ? 0.72 : -0.72;
                     yVelocity += thrust * gravitySign * step;
                 } else {
-                    yVelocity -= gravity * gravitySign * 0.6 * step;
+                    // Approximate variable-height cube/robot jumps: continuing to hold
+                    // jump reduces gravity while the player is still rising. This makes
+                    // the cyan and lilac alternatives diverge for ordinary jump modes.
+                    // Ball/spider flips and UFO impulses are discrete events and are not
+                    // modeled accurately by this lightweight preview.
+                    const bool variableJumpMode = !player->m_isBall && !player->m_isSpider &&
+                        !player->m_isBird && !player->m_isShip && !player->m_isDart &&
+                        !player->m_isSwing;
+                    const bool rising = yVelocity * gravitySign > 0.0;
+                    const double gravityScale = variableJumpMode && held && rising ? 0.42 : 1.0;
+                    yVelocity -= gravity * gravitySign * 0.6 * step * gravityScale;
                     yVelocity = std::clamp(yVelocity, -15.0, 15.0);
                 }
 
