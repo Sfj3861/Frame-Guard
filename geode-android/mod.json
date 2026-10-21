@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.14.2",
+  "version": "v0.15.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android64 overlay with cyan/lilac alternate-input trajectories, independent opacity controls, and mobile-first performance mode enabled by default.",
+  "description": "Frame-Guard Android64 overlay with touch UI, trajectory diagnostics, dual-player telemetry and optional debug HUD.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes / Mostrar cajas de colisión",
@@ -125,6 +125,12 @@
       "min": 0,
       "max": 100,
       "description": "Independent opacity for the lilac opposite-input trajectory. / Opacidad independiente de la trayectoria lila con la entrada contraria."
+    },
+    "debug-mode": {
+      "name": "Debug mode / Modo debug",
+      "type": "bool",
+      "default": false,
+      "description": "Show technical diagnostics for overlay coordinates, player states, input timing and cache updates. / Muestra diagnósticos técnicos de coordenadas, estados de jugadores, tiempos de entrada y caché."
     },
     "mobile-performance-mode": {
       "name": "Mobile performance mode / Modo de rendimiento móvil",
