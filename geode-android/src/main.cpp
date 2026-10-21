@@ -273,6 +273,7 @@ namespace {
         }
     }
 
+    // v0.15.0: diagnostics are opt-in so normal play remains uncluttered.
     // Frame-Guard draws collision geometry independently, using Geometry Dash's
     // collision rectangles, circles, slope direction and player oriented box.
     // It deliberately excludes decoration and non-collidable visual objects.
