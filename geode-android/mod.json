@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.13.10",
+  "version": "v0.14.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with viewport-culled hitbox diagnostics, optimized approximate trajectory preview, compact responsive bilingual controls, safe collision-rectangle caching, and an opt-in experimental Jump scheduler.",
+  "description": "Frame-Guard Android overlay with cyan live and lilac alternate-input trajectory previews, independently configurable visual opacity, expanded hitbox visibility margins, responsive bilingual touch controls, and an opt-in experimental Jump scheduler.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes / Mostrar cajas de colisión",
@@ -93,6 +93,38 @@
       "type": "bool",
       "default": false,
       "description": "Opt-in heuristic for Jump press/release edges using a lightweight collision estimate and the configured FPS-derived tick budget. Approximate; validate in-game. / Heurística opcional para pulsaciones y liberaciones de salto usando una estimación sencilla de colisiones y el límite de ticks calculado según FPS. Es aproximada; validar dentro del juego."
+    },
+    "hitbox-opacity": {
+      "name": "Hitbox opacity / Opacidad de hitboxes",
+      "type": "int",
+      "default": 100,
+      "min": 0,
+      "max": 100,
+      "description": "Independent opacity for object collision outlines. / Opacidad independiente de las hitboxes de objetos."
+    },
+    "player-bounds-opacity": {
+      "name": "Player bounds opacity / Opacidad de límites del jugador",
+      "type": "int",
+      "default": 100,
+      "min": 0,
+      "max": 100,
+      "description": "Independent opacity for player collision bounds. / Opacidad independiente de los límites de colisión del jugador."
+    },
+    "trajectory-opacity": {
+      "name": "Current trajectory opacity / Opacidad de trayectoria actual",
+      "type": "int",
+      "default": 100,
+      "min": 0,
+      "max": 100,
+      "description": "Independent opacity for the cyan current-input trajectory. / Opacidad independiente de la trayectoria cian con la entrada actual."
+    },
+    "alternative-trajectory-opacity": {
+      "name": "Alternative trajectory opacity / Opacidad de trayectoria alternativa",
+      "type": "int",
+      "default": 100,
+      "min": 0,
+      "max": 100,
+      "description": "Independent opacity for the lilac opposite-input trajectory. / Opacidad independiente de la trayectoria lila con la entrada contraria."
     }
   }
 }
