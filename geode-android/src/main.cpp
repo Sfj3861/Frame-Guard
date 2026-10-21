@@ -876,6 +876,16 @@ namespace {
             m_menu = cocos2d::CCMenu::create();
             if (!m_menu) return false;
             m_menu->setPosition(cocos2d::CCPointZero);
+            auto* panel = cocos2d::CCDrawNode::create();
+            if (panel) {
+                const float panelW = std::min(size.width - 20.f, 620.f);
+                const float panelH = std::min(size.height - 24.f, 300.f);
+                const cocos2d::CCPoint corners[] = { ccp(10.f, 12.f), ccp(10.f + panelW, 12.f), ccp(10.f + panelW, 12.f + panelH), ccp(10.f, 12.f + panelH) };
+                panel->drawPolygon(corners, 4, cocos2d::ccc4f(0.08f, 0.13f, 0.34f, 0.96f), 3.f, cocos2d::ccc4f(0.45f, 0.78f, 1.f, 1.f));
+                panel->setVisible(false);
+                this->addChild(panel, 0);
+                m_panel = panel;
+            }
             this->addChild(m_menu, 1);
 
             auto* floatingSprite = cocos2d::CCSprite::createWithSpriteFrameName("GJ_button_01.png");
@@ -996,7 +1006,7 @@ namespace {
                 m_guardLabel->setScale(0.34f);
                 m_guardLabel->setAnchorPoint(ccp(0.f, 0.5f));
                 m_guardLabel->setPosition(ccp(8.f, size.height - 42.f));
-                m_guardLabel->setVisible(Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
+                m_guardLabel->setVisible((Mod::get()->getSettingValue<bool>("show-info-text") || Mod::get()->getSettingValue<bool>("debug-mode")) && Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
                 this->addChild(m_guardLabel, 2);
             }
             syncLabels();
@@ -1006,6 +1016,7 @@ namespace {
 
         void toggleMenu() {
             m_open = !m_open;
+            if (m_panel) m_panel->setVisible(m_open);
             m_hitboxButton->setVisible(m_open);
             m_playerButton->setVisible(m_open);
             m_trailButton->setVisible(m_open);
@@ -1038,10 +1049,10 @@ namespace {
                     toggleText("FPS", "FPS", Mod::get()->getSettingValue<bool>("show-fps")).c_str());
             const bool showInfo = Mod::get()->getSettingValue<bool>("show-info-text");
             if (m_fpsLabel) m_fpsLabel->setVisible(showInfo && Mod::get()->getSettingValue<bool>("show-fps"));
-            if (m_guardLabel) m_guardLabel->setVisible(showInfo && Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
+            if (m_guardLabel) m_guardLabel->setVisible((showInfo || Mod::get()->getSettingValue<bool>("debug-mode")) && Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
             if (m_infoButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_infoButton->getLabel())->setString(
-                    toggleText("Info text", "Texto informativo", showInfo).c_str());
+                    toggleText("Debug mode", "Modo debug", Mod::get()->getSettingValue<bool>("debug-mode")).c_str());
             if (m_opacityTargetButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_opacityTargetButton->getLabel())->setString(
                     fmt::format("{}: {}", tr("Opacity target", "Opacidad de"), opacitySettingName()).c_str());
@@ -1077,11 +1088,21 @@ namespace {
         }
 
         void updateFrameGuardHUD(float dt) {
-            if (!m_guardLabel || !Mod::get()->getSettingValue<bool>("show-info-text") ||
-                !Mod::get()->getSettingValue<bool>("show-frameguard-hud")) return;
+            if (!m_guardLabel || !Mod::get()->getSettingValue<bool>("show-frameguard-hud")) return;
+            const bool debug = Mod::get()->getSettingValue<bool>("debug-mode");
+            if (!debug && !Mod::get()->getSettingValue<bool>("show-info-text")) return;
             m_guardElapsed += dt;
-            if (m_guardElapsed >= 0.10f) {
+            if (m_guardElapsed >= (debug ? 0.10f : 0.25f)) {
                 auto text = FrameGuardTelemetry::summary();
+                if (debug) {
+                    auto* layer = PlayLayer::get();
+                    const auto fps = dt > 0.f ? static_cast<int>(1.f / dt + 0.5f) : 0;
+                    text = fmt::format("DEBUG | FPS:{} | P1:{} | P2:{} | objects:{} | scheduler:{} | {}",
+                        fps, layer && layer->m_player1 ? "OK" : "NULL",
+                        layer && layer->m_player2 && layer->m_player2->isRunning() ? "ACTIVE" : "OFF",
+                        layer && layer->m_objects ? layer->m_objects->count() : 0,
+                        Mod::get()->getSettingValue<bool>("input-scheduler-enabled") ? "ON" : "OFF", text);
+                }
                 m_guardLabel->setString(text.c_str());
                 m_guardElapsed = 0.f;
             }
@@ -1134,8 +1155,8 @@ namespace {
             syncLabels();
         }
         void onToggleInfo(cocos2d::CCObject*) {
-            Mod::get()->setSettingValue<bool>("show-info-text",
-                !Mod::get()->getSettingValue<bool>("show-info-text"));
+            Mod::get()->setSettingValue<bool>("debug-mode",
+                !Mod::get()->getSettingValue<bool>("debug-mode"));
             syncLabels();
         }
         void onToggleHitboxes(cocos2d::CCObject*) {
@@ -1180,6 +1201,7 @@ namespace {
         }
 
         cocos2d::CCMenu* m_menu = nullptr;
+        cocos2d::CCDrawNode* m_panel = nullptr;
         CCMenuItemSpriteExtra* m_openButton = nullptr;
         cocos2d::CCMenuItemLabel* m_hitboxButton = nullptr;
         cocos2d::CCMenuItemLabel* m_playerButton = nullptr;
