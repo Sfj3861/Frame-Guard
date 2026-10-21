@@ -309,6 +309,10 @@ namespace {
 
         void refresh(PlayLayer* layer) {
             if (!layer || !m_draw) return;
+            // Mobile-first workload cap: retain the previous overlay on alternate
+            // frames. Cache integrity checks still run on every rendered refresh.
+            if (Mod::get()->getSettingValue<bool>("mobile-performance-mode") &&
+                (FrameGuardTelemetry::frame % 2u) != 0u) return;
             m_draw->clear();
             const int opacity = std::clamp(Mod::get()->getSettingValue<int>("overlay-opacity"), 0, 100);
             m_draw->setOpacity(static_cast<GLubyte>(opacity * 255 / 100));
@@ -543,9 +547,9 @@ namespace {
         void drawPrediction(PlayerObject* player, bool held, cocos2d::ccColor4F colour, bool alternative) {
             if (!player || player->m_isDead) return;
 
-            constexpr int iterations = 120;
+            constexpr int iterations = 72;
             constexpr float step = 0.5f;
-            constexpr int boxEvery = 6;
+            constexpr int boxEvery = 8;
             auto position = player->getPosition();
             float x = position.x;
             float y = position.y;
@@ -562,8 +566,12 @@ namespace {
             // Cache only collision geometry inside the predicted horizontal span.
             // The previous implementation tested every level object at every one of
             // the 120 prediction steps, multiplying work on long/high-object-count levels.
-            std::vector<std::pair<GameObject*, cocos2d::CCRect>> nearbyObjects;
-            nearbyObjects.reserve(std::min<std::size_t>(m_collisionObjects.size(), 128));
+            // Reuse scratch storage across predictions instead of allocating a vector
+            // for every cyan/lilac path on every refresh.
+            m_nearbyObjects.clear();
+            auto& nearbyObjects = m_nearbyObjects;
+            if (nearbyObjects.capacity() < std::min<std::size_t>(m_collisionObjects.size(), 128))
+                nearbyObjects.reserve(std::min<std::size_t>(m_collisionObjects.size(), 128));
             const float predictedEndX = x + static_cast<float>(xVelocity * step * iterations);
             const float queryMinX = std::min(x, predictedEndX) - halfWidth - 64.f;
             const float queryMaxX = std::max(x, predictedEndX) + halfWidth + 64.f;
@@ -745,6 +753,7 @@ namespace {
         }
 
         cocos2d::CCDrawNode* m_draw = nullptr;
+        std::vector<std::pair<GameObject*, cocos2d::CCRect>> m_nearbyObjects;
         cocos2d::CCArray* m_cachedObjectArray = nullptr;
         std::vector<GameObject*> m_collisionObjects;
         std::vector<std::pair<unsigned int, GameObject*>> m_cachedObjectEntries;
