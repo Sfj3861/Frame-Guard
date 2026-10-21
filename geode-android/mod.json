@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.14.0",
+  "version": "v0.14.1",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with cyan live and lilac alternate-input trajectory previews, independently configurable visual opacity, expanded hitbox visibility margins, responsive bilingual touch controls, and an opt-in experimental Jump scheduler.",
+  "description": "Frame-Guard Android overlay with cyan live and lilac alternate-input trajectory previews, independent per-layer opacity controls in the touch menu, expanded hitbox visibility margins, bilingual controls, and an opt-in experimental Jump scheduler.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes / Mostrar cajas de colisión",
