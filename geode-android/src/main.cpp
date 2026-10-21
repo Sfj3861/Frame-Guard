@@ -21,6 +21,9 @@ namespace {
 
     bool spanish() { return Mod::get()->getSettingValue<bool>("ui-spanish"); }
     char const* tr(char const* en, char const* es) { return spanish() ? es : en; }
+    static float opacityFactor(char const* key) {
+        return static_cast<float>(std::clamp(Mod::get()->getSettingValue<int>(key), 0, 100)) / 100.f;
+    }
     std::string toggleText(char const* en, char const* es, bool value) {
         return fmt::format("{}: {}", tr(en, es), value ? "ON" : "OFF");
     }
@@ -370,7 +373,7 @@ namespace {
                             const float radius = object->m_objectRadius > 0.f
                                 ? object->m_objectRadius * std::max<float>(object->m_scaleX, object->m_scaleY)
                                 : 0.f;
-                            constexpr float pad = 192.f;
+                            constexpr float pad = 512.f;
                             if (object->m_positionX + radius < viewportBounds.getMinX() - pad ||
                                 object->m_positionX - radius > viewportBounds.getMaxX() + pad ||
                                 object->m_positionY + radius < viewportBounds.getMinY() - pad ||
@@ -380,7 +383,7 @@ namespace {
 
                         const auto rect = collisionRect(object);
                         if (haveViewportBounds && object->m_objectRadius <= 0.f) {
-                            constexpr float pad = 32.f;
+                            constexpr float pad = 96.f;
                             if (rect.getMaxX() < viewportBounds.getMinX() - pad ||
                                 rect.getMinX() > viewportBounds.getMaxX() + pad ||
                                 rect.getMaxY() < viewportBounds.getMinY() - pad ||
@@ -398,11 +401,19 @@ namespace {
             // This is a lightweight approximation: it does not execute the game's
             // collision/trigger system, so portals and future contacts are not predicted.
             if (showTrajectory && layer->m_player1) {
-                drawPrediction(layer->m_player1, FrameGuardTelemetry::isHeld(false),
-                    cocos2d::ccc4f(0.10f, 0.82f, 1.0f, 1.0f));
-                if (layer->m_player2 && layer->m_player2->isRunning())
-                    drawPrediction(layer->m_player2, FrameGuardTelemetry::isHeld(true),
-                        cocos2d::ccc4f(1.0f, 0.45f, 0.10f, 1.0f));
+                const bool held1 = FrameGuardTelemetry::isHeld(false);
+                drawPrediction(layer->m_player1, held1,
+                    cocos2d::ccc4f(0.10f, 0.82f, 1.0f, 1.0f), false);
+                // Alternative path predicts the opposite input state at this frame.
+                drawPrediction(layer->m_player1, !held1,
+                    cocos2d::ccc4f(0.72f, 0.38f, 1.0f, 1.0f), true);
+                if (layer->m_player2 && layer->m_player2->isRunning()) {
+                    const bool held2 = FrameGuardTelemetry::isHeld(true);
+                    drawPrediction(layer->m_player2, held2,
+                        cocos2d::ccc4f(0.10f, 0.82f, 1.0f, 1.0f), false);
+                    drawPrediction(layer->m_player2, !held2,
+                        cocos2d::ccc4f(0.72f, 0.38f, 1.0f, 1.0f), true);
+                }
             }
 
             if (showPlayerBounds) {
@@ -529,7 +540,7 @@ namespace {
             return cocos2d::ccc4f(1.0f, 0.85f, 0.15f, 0.9f);
         }
 
-        void drawPrediction(PlayerObject* player, bool held, cocos2d::ccColor4F colour) {
+        void drawPrediction(PlayerObject* player, bool held, cocos2d::ccColor4F colour, bool alternative) {
             if (!player || player->m_isDead) return;
 
             constexpr int iterations = 120;
@@ -572,6 +583,7 @@ namespace {
             }
 
             cocos2d::CCPoint previous = ccp(x, y);
+            const float pathOpacity = opacityFactor(alternative ? "alternative-trajectory-opacity" : "trajectory-opacity");
 
             for (int i = 1; i <= iterations; ++i) {
                 if (player->m_isDart) {
@@ -603,7 +615,7 @@ namespace {
                     ? cocos2d::ccc4f(1.f, 0.12f, 0.12f, colour.a)
                     : colour;
                 segmentColour.a = 0.72f * (1.0f - static_cast<float>(i) /
-                    static_cast<float>(iterations) * 0.55f);
+                    static_cast<float>(iterations) * 0.55f) * pathOpacity;
                 m_draw->drawSegment(previous, current, 1.15f, segmentColour);
                 previous = current;
 
@@ -613,8 +625,8 @@ namespace {
                         ccp(x + halfWidth, y + halfHeight), ccp(x - halfWidth, y + halfHeight)
                     };
                     auto boxColour = colour;
-                    boxColour.a = 0.10f + 0.20f * (1.0f - static_cast<float>(i) /
-                        static_cast<float>(iterations));
+                    boxColour.a = (0.10f + 0.20f * (1.0f - static_cast<float>(i) /
+                        static_cast<float>(iterations))) * pathOpacity;
                     m_draw->drawPolygon(box, 4, cocos2d::ccc4f(0.f, 0.f, 0.f, 0.f),
                         0.65f, boxColour, cocos2d::BorderAlignment::Inside);
                 }
@@ -628,7 +640,8 @@ namespace {
         }
 
         void drawObjectGeometry(GameObject* obj, cocos2d::CCRect const& rect) {
-            const auto colour = colourFor(obj);
+            auto colour = colourFor(obj);
+            colour.a *= opacityFactor("hitbox-opacity");
             const float width = 0.7f;
 
             if (obj->m_objectRadius > 0.0f) {
@@ -689,9 +702,10 @@ namespace {
 
         void drawPlayerGeometry(PlayerObject* player) {
             if (!player) return;
-            const auto normal = cocos2d::ccc4f(1.0f, 0.12f, 0.12f, 0.98f);
-            const auto rotated = cocos2d::ccc4f(0.95f, 0.05f, 0.48f, 0.98f);
-            const auto mini = cocos2d::ccc4f(0.12f, 0.95f, 1.0f, 0.98f);
+            const float alpha = opacityFactor("player-bounds-opacity");
+            const auto normal = cocos2d::ccc4f(1.0f, 0.12f, 0.12f, 0.98f * alpha);
+            const auto rotated = cocos2d::ccc4f(0.95f, 0.05f, 0.48f, 0.98f * alpha);
+            const auto mini = cocos2d::ccc4f(0.12f, 0.95f, 1.0f, 0.98f * alpha);
             if (player->m_orientedBox) {
                 cocos2d::CCPoint corners[] = {
                     player->m_orientedBox->m_corners[0], player->m_orientedBox->m_corners[1],
