@@ -1,7 +1,7 @@
 # Frame-Guard — Geode para Android
 
 **Objetivo:** Geometry Dash Android 2.2081 · Geode SDK 5.11.2 · Android 64 bits.  
-**Versión de desarrollo:** v0.13.10.
+**Versión de desarrollo:** v0.14.1.
 
 Frame-Guard es una superposición de diagnóstico. Dibuja geometría estimada de colisión, límites del jugador y una trayectoria futura aproximada, y registra eventos de entrada para ayudar a analizar el comportamiento del juego.
 
