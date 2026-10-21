@@ -881,7 +881,7 @@ namespace {
             if (panel) {
                 const float panelW = std::min(size.width - 20.f, 620.f);
                 const float panelH = std::min(size.height - 24.f, 300.f);
-                const cocos2d::CCPoint corners[] = { ccp(10.f, 12.f), ccp(10.f + panelW, 12.f), ccp(10.f + panelW, 12.f + panelH), ccp(10.f, 12.f + panelH) };
+                cocos2d::CCPoint corners[] = { ccp(10.f, 12.f), ccp(10.f + panelW, 12.f), ccp(10.f + panelW, 12.f + panelH), ccp(10.f, 12.f + panelH) };
                 panel->drawPolygon(corners, 4, cocos2d::ccc4f(0.08f, 0.13f, 0.34f, 0.96f), 3.f, cocos2d::ccc4f(0.45f, 0.78f, 1.f, 1.f));
                 panel->setVisible(false);
                 this->addChild(panel, 0);
