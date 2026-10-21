@@ -890,9 +890,10 @@ namespace {
             m_infoButton = makeItem("", menu_selector(FrameGuardMenu::onToggleInfo));
             m_hudButton = makeItem("", menu_selector(FrameGuardMenu::onToggleHUD));
             m_languageButton = makeItem("", menu_selector(FrameGuardMenu::onToggleLanguage));
-            m_opacitySlider = FrameGuardSlider::create("Opacity", "%", 0, 100,
-                Mod::get()->getSettingValue<int>("overlay-opacity"), [](int value) {
-                    Mod::get()->setSettingValue<int>("overlay-opacity", value);
+            m_opacityTargetButton = makeItem("", menu_selector(FrameGuardMenu::onCycleOpacityTarget));
+            m_opacitySlider = FrameGuardSlider::create("Hitbox opacity", "%", 0, 100,
+                Mod::get()->getSettingValue<int>("hitbox-opacity"), [this](int value) {
+                    Mod::get()->setSettingValue<int>(opacitySettingKey(), value);
                 });
             m_marginSlider = FrameGuardSlider::create(tr("Safe margin", "Margen seguro"), " ticks", 0, 12,
                 Mod::get()->getSettingValue<int>("safe-margin-ticks"), [](int value) {
@@ -904,7 +905,7 @@ namespace {
                 });
             if (!m_openButton || !m_hitboxButton || !m_playerButton || !m_trailButton ||
                 !m_fpsButton || !m_guardButton || !m_schedulerButton || !m_exportButton || !m_infoButton ||
-                !m_opacitySlider || !m_marginSlider || !m_hudButton || !m_languageButton || !m_delaySlider) return false;
+                !m_opacitySlider || !m_opacityTargetButton || !m_marginSlider || !m_hudButton || !m_languageButton || !m_delaySlider) return false;
             this->addEventListener(
                 KeybindSettingPressedEventV3(Mod::get(), "toggle-menu"),
                 [this](Keybind const&, bool down, bool repeat, double) {
@@ -930,6 +931,7 @@ namespace {
             m_infoButton->setPosition(ccp(rightX, rowTop - rowStep * 3.f));
             m_hudButton->setPosition(ccp(leftX, rowTop - rowStep * 4.f));
             m_languageButton->setPosition(ccp(rightX, rowTop - rowStep * 4.f));
+            m_opacityTargetButton->setPosition(ccp(std::clamp(size.width * 0.18f, 54.f, 92.f), size.height - 200.f));
             m_opacitySlider->setPosition(ccp(sliderX, size.height - 200.f));
             m_marginSlider->setPosition(ccp(sliderX, size.height - 236.f));
             m_delaySlider->setPosition(ccp(sliderX, size.height - 272.f));
@@ -944,6 +946,7 @@ namespace {
             m_menu->addChild(m_infoButton);
             m_menu->addChild(m_hudButton);
             m_menu->addChild(m_languageButton);
+            m_menu->addChild(m_opacityTargetButton);
             m_menu->addChild(m_opacitySlider);
             m_menu->addChild(m_marginSlider);
             m_menu->addChild(m_delaySlider);
@@ -957,6 +960,7 @@ namespace {
             m_infoButton->setVisible(false);
             m_hudButton->setVisible(false);
             m_languageButton->setVisible(false);
+            m_opacityTargetButton->setVisible(false);
             m_opacitySlider->setVisible(false);
             m_marginSlider->setVisible(false);
             m_delaySlider->setVisible(false);
@@ -993,6 +997,7 @@ namespace {
             m_infoButton->setVisible(m_open);
             m_hudButton->setVisible(m_open);
             m_languageButton->setVisible(m_open);
+            m_opacityTargetButton->setVisible(m_open);
             m_opacitySlider->setVisible(m_open);
             m_marginSlider->setVisible(m_open);
             m_delaySlider->setVisible(m_open);
@@ -1018,9 +1023,12 @@ namespace {
             if (m_infoButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_infoButton->getLabel())->setString(
                     toggleText("Info text", "Texto informativo", showInfo).c_str());
+            if (m_opacityTargetButton)
+                static_cast<cocos2d::CCLabelBMFont*>(m_opacityTargetButton->getLabel())->setString(
+                    fmt::format("{}: {}", tr("Opacity target", "Opacidad de"), opacitySettingName()).c_str());
             if (m_opacitySlider) {
-                m_opacitySlider->setCaption(tr("Opacity", "Opacidad"), "%");
-                m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
+                m_opacitySlider->setCaption(opacitySettingName().c_str(), "%");
+                m_opacitySlider->setValue(Mod::get()->getSettingValue<int>(opacitySettingKey()));
             }
             if (m_marginSlider) {
                 m_marginSlider->setCaption(tr("Safe margin", "Margen seguro"), " ticks");
@@ -1082,6 +1090,19 @@ namespace {
             if (!label) return nullptr;
             label->setScale(0.48f);
             return cocos2d::CCMenuItemLabel::create(label, this, callback);
+        }
+        char const* opacitySettingKey() const {
+            static constexpr char const* keys[] = { "hitbox-opacity", "player-bounds-opacity", "trajectory-opacity", "alternative-trajectory-opacity" };
+            return keys[m_opacityTarget % 4];
+        }
+        std::string opacitySettingName() const {
+            static constexpr char const* en[] = { "Hitboxes", "Player bounds", "Cyan path", "Lilac path" };
+            static constexpr char const* es[] = { "Hitboxes", "Límites jugador", "Trayectoria cian", "Trayectoria lila" };
+            return spanish() ? es[m_opacityTarget % 4] : en[m_opacityTarget % 4];
+        }
+        void onCycleOpacityTarget(cocos2d::CCObject*) {
+            m_opacityTarget = (m_opacityTarget + 1) % 4;
+            syncLabels();
         }
         void onToggleMenu(cocos2d::CCObject*) { toggleMenu(); }
         void onToggleLanguage(cocos2d::CCObject*) {
@@ -1154,6 +1175,8 @@ namespace {
         FrameGuardSlider* m_delaySlider = nullptr;
         cocos2d::CCMenuItemLabel* m_hudButton = nullptr;
         cocos2d::CCMenuItemLabel* m_languageButton = nullptr;
+        cocos2d::CCMenuItemLabel* m_opacityTargetButton = nullptr;
+        int m_opacityTarget = 0;
         cocos2d::CCLabelBMFont* m_fpsLabel = nullptr;
         cocos2d::CCLabelBMFont* m_guardLabel = nullptr;
         float m_guardElapsed = 0.f;
