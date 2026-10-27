@@ -209,6 +209,12 @@ namespace {
             !Mod::get()->getSettingValue<bool>("frameguard-enabled") ||
             input.button != PlayerButton::Jump || !input.player || input.player->m_isDead)
             return false;
+
+        // Fail open for discrete-input modes. The lightweight predictor does not
+        // model ball/spider flips, UFO impulses, rings, pads or trigger timing well
+        // enough to justify delaying a real input in those modes.
+        if (input.player->m_isBall || input.player->m_isSpider || input.player->m_isBird)
+            return false;
         const int budget = effectiveDelayTicks(g_effectiveFPS);
         if (budget <= 0 || static_cast<int>(FrameGuardTelemetry::frame - input.queuedAtFrame) >= budget)
             return false;
@@ -548,9 +554,12 @@ namespace {
         void drawPrediction(PlayerObject* player, bool held, cocos2d::ccColor4F colour, bool alternative) {
             if (!player || player->m_isDead) return;
 
-            constexpr int iterations = 72;
+            // Reduce the number of simulated points on mobile by default. This
+            // changes only the visual preview, never the real input path or scheduler.
+            const bool mobileMode = Mod::get()->getSettingValue<bool>("mobile-performance-mode");
+            const int iterations = mobileMode ? 36 : 72;
             constexpr float step = 0.5f;
-            constexpr int boxEvery = 8;
+            const int boxEvery = mobileMode ? 12 : 8;
             auto position = player->getPosition();
             float x = position.x;
             float y = position.y;
@@ -565,8 +574,9 @@ namespace {
                 Mod::get()->getSettingValue<int>("safe-margin-ticks"), 0, 12);
             const float safetyPad = static_cast<float>(marginTicks) * 1.25f;
             // Cache only collision geometry inside the predicted horizontal span.
-            // The previous implementation tested every level object at every one of
-            // the 120 prediction steps, multiplying work on long/high-object-count levels.
+            // The mobile preview uses half as many simulated points to reduce CPU
+            // cost on lower-powered devices; full preview remains available by disabling
+            // mobile-performance-mode.
             // Reuse scratch storage across predictions instead of allocating a vector
             // for every cyan/lilac path on every refresh.
             m_nearbyObjects.clear();
