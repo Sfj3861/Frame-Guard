@@ -106,3 +106,10 @@ El flujo de GitHub Actions valida `mod.json`, compila para Android64, comprueba 
 
 ### v0.11.0
 - Controles bilingües, exportación CSV y presupuesto configurable de espera de entrada.
+
+
+## v0.15.0 preview
+
+- Reduced trajectory-preview simulation points by 50% when mobile performance mode is enabled; disable that setting for the longer visual preview.
+- Smart input scheduling now fails open for ball, spider and UFO modes, where discrete movement mechanics are not modeled accurately enough to justify delaying inputs.
+- The scheduler remains opt-in and experimental. These safeguards reduce known risks but do not guarantee correctness; verify touch input, dual mode and each supported game mode on-device before publishing to the Geode index.
