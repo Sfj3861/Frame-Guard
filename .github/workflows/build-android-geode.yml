@@ -92,7 +92,7 @@ jobs:
       - name: Upload .geode package and checksum
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: Frame-Guard-Android64-v0.15.0
+          name: Frame-Guard-Android64-v0.15.1
           path: |
             Frame-Guard-Android64.geode
             Frame-Guard-Android64.geode.sha256
@@ -106,7 +106,7 @@ jobs:
           name: Frame-Guard Android64 build ${{ github.run_number }}
           body: |
             Automatically built Android64 .geode package from commit ${{ github.sha }}.
-            Mod version: v0.15.0.
+            Mod version: v0.15.1.
             This is an unverified development build. The experimental input scheduler is disabled by default.
             A successful package check is not a substitute for testing on Geometry Dash Android 2.2081.
           prerelease: true
