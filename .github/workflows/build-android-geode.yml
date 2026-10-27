@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - "preview/v0.15.0"
     paths:
       - "geode-android/src/**"
       - "geode-android/tools/**"
