@@ -273,7 +273,21 @@ namespace {
         }
     }
 
-    // v0.15.0: diagnostics are opt-in so normal play remains uncluttered.
+    // If a release arrives while a press is queued, flush that player's queued
+    // edges in order before allowing the release through. This prevents a delayed
+    // press from firing after the finger has already been lifted (stuck/late jump).
+    static void flushPendingInputsFor(PlayerObject* player) {
+        if (!player) return;
+        for (std::size_t i = 0; i < g_pendingInputs.size();) {
+            auto& item = g_pendingInputs[i];
+            if (item.player != player) { ++i; continue; }
+            auto apply = std::move(item.apply);
+            g_pendingInputs.erase(g_pendingInputs.begin() + static_cast<std::ptrdiff_t>(i));
+            if (apply) apply();
+        }
+    }
+
+    // v0.15.1: diagnostics are opt-in so normal play remains uncluttered.
     // Frame-Guard draws collision geometry independently, using Geometry Dash's
     // collision rectangles, circles, slope direction and player oriented box.
     // It deliberately excludes decoration and non-collidable visual objects.
@@ -1291,6 +1305,8 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
             Mod::get()->getSettingValue<bool>("frameguard-enabled") &&
             button == PlayerButton::Jump && g_activePlayLayer &&
             effectiveDelayTicks(g_effectiveFPS) > 0) {
+            // Avoid accumulating duplicate press edges for a player already queued.
+            if (hasPendingInputFor(this)) return true;
             PendingInput pending;
             pending.player = this;
             pending.button = button;
@@ -1313,25 +1329,11 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
     }
 
     bool releaseButton(PlayerButton button) {
-        if (Mod::get()->getSettingValue<bool>("input-scheduler-enabled") &&
-            Mod::get()->getSettingValue<bool>("frameguard-enabled") &&
-            button == PlayerButton::Jump && g_activePlayLayer &&
-            effectiveDelayTicks(g_effectiveFPS) > 0) {
-            PendingInput pending;
-            pending.player = this;
-            pending.button = button;
-            pending.pressed = false;
-            pending.queuedAtFrame = FrameGuardTelemetry::frame;
-            pending.apply = [this, button]() {
-                PlayerObject::releaseButton(button);
-                FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
-                FrameGuardTelemetry::record(button, false);
-            };
-            if (hasPendingInputFor(this) || shouldWaitForInput(g_activePlayLayer, pending)) {
-                g_pendingInputs.push_back(std::move(pending));
-                return true;
-            }
-        }
+        // Releases are never delayed by the predictor. If a press is still queued,
+        // deliver it first, then release immediately in this same input callback.
+        // This preserves edge order and avoids leaving a button logically held.
+        if (button == PlayerButton::Jump && hasPendingInputFor(this))
+            flushPendingInputsFor(this);
         bool result = PlayerObject::releaseButton(button);
         if (button == PlayerButton::Jump) FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
         FrameGuardTelemetry::record(button, false);
