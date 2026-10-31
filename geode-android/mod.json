@@ -82,7 +82,13 @@
       "category": "gameplay",
       "description": "Toggle the floating Frame-Guard menu with the F key."
     },
-    "input-guard-enabled": {\n      "name": "Enable Input Guard",\n      "type": "bool",\n      "default": false,\n      "description": "Experimental: defer supported jump press/release edges only when the approximate predictor finds a later safe tick. Unsupported or uncertain cases execute immediately."\n    },\n    "show-safe-window": {
+    "input-guard-enabled": {
+      "name": "Enable Input Guard",
+      "type": "bool",
+      "default": false,
+      "description": "Experimental: defer supported jump press/release edges only when the approximate predictor finds a later safe tick. Unsupported or uncertain cases execute immediately."
+    },
+    "show-safe-window": {
       "name": "Show input timing estimate",
       "type": "bool",
       "default": false,
