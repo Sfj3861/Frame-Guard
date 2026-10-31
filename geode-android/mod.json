@@ -5,9 +5,9 @@
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.15.2",
+  "version": "v0.16.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with live player collision geometry, an observed player-box trail, optimized rectangle-based hitbox culling, input telemetry, independently configurable tick horizon and a configurable forward trajectory estimate. Input-window simulation advances one modeled update per tick, routes bird flight through the continuous-input estimate, and separates forecast horizon from visual hitbox margin; prediction remains approximate because game triggers and collision resolution are not replayed.",
+  "description": "Frame-Guard Android overlay with world-space hitboxes, trajectory preview, input telemetry and an optional predictive Input Guard. Input Guard only defers supported jump edges when the approximate forecast finds a later safe tick; uncertain or unsupported cases execute immediately. Deferred input timing remains experimental and does not reproduce every trigger or collision rule.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
@@ -82,7 +82,7 @@
       "category": "gameplay",
       "description": "Toggle the floating Frame-Guard menu with the F key."
     },
-    "show-safe-window": {
+    "input-guard-enabled": {\n      "name": "Enable Input Guard",\n      "type": "bool",\n      "default": false,\n      "description": "Experimental: defer supported jump press/release edges only when the approximate predictor finds a later safe tick. Unsupported or uncertain cases execute immediately."\n    },\n    "show-safe-window": {
       "name": "Show input timing estimate",
       "type": "bool",
       "default": false,
