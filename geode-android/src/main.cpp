@@ -21,6 +21,19 @@ namespace {
 
     class FrameGuardOverlay;
     static FrameGuardOverlay* g_activeOverlay = nullptr;
+    struct PendingInput {
+        PlayerObject* player = nullptr;
+        PlayerButton button = PlayerButton::Jump;
+        bool pressed = false;
+        std::uint64_t dueFrame = 0;
+    };
+    static std::deque<PendingInput> g_pendingInputs;
+    static bool g_replayingInput = false;
+    static bool hasPendingInput(PlayerObject* player) {
+        return std::any_of(g_pendingInputs.begin(), g_pendingInputs.end(),
+            [player](PendingInput const& event) { return event.player == player; });
+    }
+    static void clearPendingInputs() { g_pendingInputs.clear(); }
 
     std::string toggleText(char const* name, bool value) {
         return fmt::format("{}: {}", name, value ? "ON" : "OFF");
@@ -159,7 +172,8 @@ namespace {
             const int horizonTicks = std::clamp(Mod::get()->getSettingValue<int>("prediction-horizon-ticks"), 1, 12);
             const bool showSafeWindow = Mod::get()->getSettingValue<bool>("show-safe-window");
 
-            if ((showHitboxes || showTrajectory || showSafeWindow) && layer->m_objects) {
+            const bool inputGuardEnabled = Mod::get()->getSettingValue<bool>("input-guard-enabled");
+            if ((showHitboxes || showTrajectory || showSafeWindow || inputGuardEnabled) && layer->m_objects) {
                 // Build the collision cache for both drawing and path-safety checks.
                 const auto count = layer->m_objects->count();
                 if (count != m_cachedObjectCount) {
@@ -315,6 +329,22 @@ namespace {
                 if (!clearOfHazards(x, y)) return false;
             }
             return true;
+        }
+
+        // Only defer when a supported continuous-input model identifies a later safe tick.
+        // Unsupported modes and ambiguous forecasts always execute immediately.
+        int recommendedInputDelay(PlayerObject* player, bool pressed) const {
+            if (!player || player->m_isDead || m_hazardObjects.empty()) return 0;
+            if (!(player->m_isDart || player->m_isShip || player->m_isBird || player->m_isSwing))
+                return 0;
+            const int horizon = std::clamp(
+                Mod::get()->getSettingValue<int>("prediction-horizon-ticks"), 1, 12);
+            if (isInputDelayPathClear(player, horizon, 0, pressed)) return 0;
+            for (int delay = 1; delay < horizon; ++delay) {
+                if (isInputDelayPathClear(player, horizon, delay, pressed))
+                    return delay;
+            }
+            return 0;
         }
 
         // Current-input lead time for modes without a supported input-window model.
@@ -962,7 +992,7 @@ namespace {
                     toggleText("Info text", showInfo).c_str());
             if (m_inputGuardButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_inputGuardButton->getLabel())->setString(
-                    toggleText("Path preview", Mod::get()->getSettingValue<bool>("show-safe-window")).c_str());
+                    toggleText("Input Guard", Mod::get()->getSettingValue<bool>("input-guard-enabled")).c_str());
             if (m_opacitySlider) m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
             if (m_marginSlider) m_marginSlider->setValue(Mod::get()->getSettingValue<int>("safe-margin-ticks"));
             if (m_horizonSlider) m_horizonSlider->setValue(Mod::get()->getSettingValue<int>("prediction-horizon-ticks"));
@@ -1007,8 +1037,8 @@ namespace {
         }
         void onToggleMenu(cocos2d::CCObject*) { toggleMenu(); }
         void onToggleSafeWindow(cocos2d::CCObject*) {
-            Mod::get()->setSettingValue<bool>("show-safe-window",
-                !Mod::get()->getSettingValue<bool>("show-safe-window"));
+            Mod::get()->setSettingValue<bool>("input-guard-enabled",
+                !Mod::get()->getSettingValue<bool>("input-guard-enabled"));
             syncLabels();
         }
         void onToggleInfo(cocos2d::CCObject*) {
@@ -1119,6 +1149,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
     void resetLevel() {
         if (m_fields->overlay) m_fields->overlay->resetTrail();
         FrameGuardTelemetry::reset();
+        clearPendingInputs();
         PlayLayer::resetLevel();
     }
 };
@@ -1128,7 +1159,39 @@ $on_mod(Loaded) {
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
+    void update(float dt) {
+        PlayerObject::update(dt);
+        if (this->m_isDead) {
+            g_pendingInputs.erase(std::remove_if(g_pendingInputs.begin(), g_pendingInputs.end(),
+                [this](PendingInput const& event) { return event.player == this; }), g_pendingInputs.end());
+            return;
+        }
+        while (!g_pendingInputs.empty()) {
+            auto const event = g_pendingInputs.front();
+            if (event.player != this || event.dueFrame > FrameGuardTelemetry::frame) break;
+            g_pendingInputs.pop_front();
+            g_replayingInput = true;
+            const bool result = event.pressed
+                ? PlayerObject::pushButton(event.button)
+                : PlayerObject::releaseButton(event.button);
+            g_replayingInput = false;
+            if (event.button == PlayerButton::Jump)
+                FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, event.pressed);
+            FrameGuardTelemetry::record(event.button, event.pressed);
+            (void)result;
+        }
+    }
+
     bool pushButton(PlayerButton button) {
+        if (!g_replayingInput && button == PlayerButton::Jump &&
+            Mod::get()->getSettingValue<bool>("input-guard-enabled") && g_activeOverlay) {
+            const int delay = g_activeOverlay->recommendedInputDelay(this, true);
+            if (delay > 0) {
+                const std::uint64_t due = FrameGuardTelemetry::frame + static_cast<std::uint64_t>(delay);
+                g_pendingInputs.push_back(PendingInput{this, button, true, due});
+                return true;
+            }
+        }
         const bool result = PlayerObject::pushButton(button);
         if (button == PlayerButton::Jump)
             FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, true);
@@ -1137,6 +1200,18 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
     }
 
     bool releaseButton(PlayerButton button) {
+        if (!g_replayingInput && button == PlayerButton::Jump &&
+            Mod::get()->getSettingValue<bool>("input-guard-enabled") && g_activeOverlay) {
+            const int delay = g_activeOverlay->recommendedInputDelay(this, false);
+            if (delay > 0 || hasPendingInput(this)) {
+                std::uint64_t due = FrameGuardTelemetry::frame + static_cast<std::uint64_t>(delay);
+                for (auto it = g_pendingInputs.rbegin(); it != g_pendingInputs.rend(); ++it) {
+                    if (it->player == this) { due = std::max(due, it->dueFrame + 1); break; }
+                }
+                g_pendingInputs.push_back(PendingInput{this, button, false, due});
+                return true;
+            }
+        }
         const bool result = PlayerObject::releaseButton(button);
         if (button == PlayerButton::Jump)
             FrameGuardTelemetry::setHeld(this->m_isSecondPlayer, false);
