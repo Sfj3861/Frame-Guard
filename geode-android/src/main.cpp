@@ -1166,10 +1166,11 @@ class $modify(FrameGuardPlayerObject, PlayerObject) {
                 [this](PendingInput const& event) { return event.player == this; }), g_pendingInputs.end());
             return;
         }
-        while (!g_pendingInputs.empty()) {
-            auto const event = g_pendingInputs.front();
-            if (event.player != this || event.dueFrame > FrameGuardTelemetry::frame) break;
-            g_pendingInputs.pop_front();
+        for (auto it = g_pendingInputs.begin(); it != g_pendingInputs.end();) {
+            if (it->player != this) { ++it; continue; }
+            if (it->dueFrame > FrameGuardTelemetry::frame) break;
+            auto const event = *it;
+            it = g_pendingInputs.erase(it);
             g_replayingInput = true;
             const bool result = event.pressed
                 ? PlayerObject::pushButton(event.button)
