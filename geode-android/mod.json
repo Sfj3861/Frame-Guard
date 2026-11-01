@@ -1,13 +1,16 @@
 {
   "geode": "5.11.2",
   "gd": {
-    "android": "2.2081"
+    "android": "2.2081",
+    "windows": "2.2081",
+    "mac": "2.2081",
+    "ios": "2.2081"
   },
   "id": "sfj3861.frame-guard",
   "name": "Frame-Guard",
-  "version": "v0.15.2",
+  "version": "v0.16.0",
   "developer": "Sfj3861",
-  "description": "Frame-Guard Android overlay with live player collision geometry, an observed player-box trail, optimized rectangle-based hitbox culling, input telemetry, independently configurable tick horizon and a configurable forward trajectory estimate. Input-window simulation advances one modeled update per tick, routes bird flight through the continuous-input estimate, and separates forecast horizon from visual hitbox margin; prediction remains approximate because game triggers and collision resolution are not replayed.",
+  "description": "Frame-Guard for Geometry Dash 2.2081: camera-aligned collision overlays, touch-friendly dropdown controls, input telemetry and a non-invasive Input Guard timing preview. The preview estimates candidate timing only; it never delays, suppresses or automates player inputs. Windows, macOS, Android and iOS builds are provided where supported by Geode.",
   "settings": {
     "show-hitboxes": {
       "name": "Show hitboxes",
@@ -83,10 +86,10 @@
       "description": "Toggle the floating Frame-Guard menu with the F key."
     },
     "show-safe-window": {
-      "name": "Show input timing estimate",
+      "name": "Input Guard preview",
       "type": "bool",
       "default": false,
-      "description": "Estimate candidate press/release timing for continuous-input modes. It is an approximate preview only and never delays or changes inputs."
+      "description": "Show an approximate press/release timing window for supported continuous-input modes. Preview only: it does not delay, block, suppress or automate any input."
     }
   }
 }
