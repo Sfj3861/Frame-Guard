@@ -789,6 +789,27 @@ namespace {
             m_menu = cocos2d::CCMenu::create();
             if (!m_menu) return false;
             m_menu->setPosition(cocos2d::CCPointZero);
+
+            // Draw a compact translucent dropdown panel behind the controls.
+            // It uses screen-space coordinates because the menu is parented to m_uiLayer.
+            m_panelDraw = cocos2d::CCDrawNode::create();
+            if (!m_panelDraw) return false;
+            const float panelBottom = std::max(8.f, size.height - 390.f);
+            m_panelDraw->drawSolidRect(
+                ccp(5.f, panelBottom), ccp(320.f, size.height - 47.f),
+                cocos2d::ccc4f(0.025f, 0.055f, 0.095f, 0.88f));
+            m_panelDraw->drawRect(
+                ccp(5.f, panelBottom), ccp(320.f, size.height - 47.f),
+                cocos2d::ccc4f(0.15f, 0.72f, 1.f, 0.85f), 1.2f);
+            this->addChild(m_panelDraw, 0);
+            m_panelTitle = cocos2d::CCLabelBMFont::create("FRAME-GUARD  /  CONTROL", "bigFont.fnt");
+            if (m_panelTitle) {
+                m_panelTitle->setScale(0.34f);
+                m_panelTitle->setPosition(ccp(164.f, size.height - 61.f));
+                this->addChild(m_panelTitle, 2);
+                m_panelTitle->setVisible(false);
+            }
+            m_panelDraw->setVisible(false);
             this->addChild(m_menu, 1);
 
             auto* floatingSprite = cocos2d::CCSprite::createWithSpriteFrameName("GJ_button_01.png");
@@ -900,6 +921,8 @@ namespace {
 
         void toggleMenu() {
             m_open = !m_open;
+            if (m_panelDraw) m_panelDraw->setVisible(m_open);
+            if (m_panelTitle) m_panelTitle->setVisible(m_open);
             m_hitboxButton->setVisible(m_open);
             m_playerButton->setVisible(m_open);
             m_trailButton->setVisible(m_open);
@@ -1026,6 +1049,8 @@ namespace {
         }
 
         cocos2d::CCMenu* m_menu = nullptr;
+        cocos2d::CCDrawNode* m_panelDraw = nullptr;
+        cocos2d::CCLabelBMFont* m_panelTitle = nullptr;
         CCMenuItemSpriteExtra* m_openButton = nullptr;
         cocos2d::CCMenuItemLabel* m_hitboxButton = nullptr;
         cocos2d::CCMenuItemLabel* m_playerButton = nullptr;
