@@ -794,7 +794,7 @@ namespace {
             // It uses screen-space coordinates because the menu is parented to m_uiLayer.
             m_panelDraw = cocos2d::CCDrawNode::create();
             if (!m_panelDraw) return false;
-            const float panelBottom = std::max(8.f, size.height - 390.f);
+            const float panelBottom = std::max(8.f, size.height - 420.f);
             m_panelDraw->drawSolidRect(
                 ccp(5.f, panelBottom), ccp(320.f, size.height - 47.f),
                 cocos2d::ccc4f(0.025f, 0.055f, 0.095f, 0.88f));
@@ -864,17 +864,17 @@ namespace {
             );
 
             m_openButton->setPosition(ccp(42.f, size.height - 34.f));
-            m_hitboxButton->setPosition(ccp(91.f, size.height - 64.f));
-            m_playerButton->setPosition(ccp(91.f, size.height - 88.f));
-            m_trailButton->setPosition(ccp(91.f, size.height - 112.f));
-            m_fpsButton->setPosition(ccp(91.f, size.height - 136.f));
-            m_guardButton->setPosition(ccp(91.f, size.height - 160.f));
-            m_exportButton->setPosition(ccp(91.f, size.height - 184.f));
-            m_infoButton->setPosition(ccp(91.f, size.height - 208.f));
-            m_inputGuardButton->setPosition(ccp(91.f, size.height - 232.f));
-            m_opacitySlider->setPosition(ccp(112.f, size.height - 266.f));
-            m_marginSlider->setPosition(ccp(112.f, size.height - 302.f));
-            m_horizonSlider->setPosition(ccp(112.f, size.height - 338.f));
+            m_hitboxButton->setPosition(ccp(91.f, size.height - 70.f));
+            m_playerButton->setPosition(ccp(91.f, size.height - 98.f));
+            m_trailButton->setPosition(ccp(91.f, size.height - 126.f));
+            m_fpsButton->setPosition(ccp(91.f, size.height - 154.f));
+            m_guardButton->setPosition(ccp(91.f, size.height - 182.f));
+            m_exportButton->setPosition(ccp(91.f, size.height - 210.f));
+            m_infoButton->setPosition(ccp(91.f, size.height - 238.f));
+            m_inputGuardButton->setPosition(ccp(91.f, size.height - 266.f));
+            m_opacitySlider->setPosition(ccp(112.f, size.height - 306.f));
+            m_marginSlider->setPosition(ccp(112.f, size.height - 344.f));
+            m_horizonSlider->setPosition(ccp(112.f, size.height - 382.f));
             m_menu->addChild(m_openButton);
             m_menu->addChild(m_hitboxButton);
             m_menu->addChild(m_playerButton);
@@ -998,7 +998,7 @@ namespace {
         cocos2d::CCMenuItemLabel* makeItem(char const* text, cocos2d::SEL_MenuHandler callback) {
             auto* label = cocos2d::CCLabelBMFont::create(text, "bigFont.fnt");
             if (!label) return nullptr;
-            label->setScale(0.48f);
+            label->setScale(0.56f);
             return cocos2d::CCMenuItemLabel::create(label, this, callback);
         }
         void onToggleMenu(cocos2d::CCObject*) { toggleMenu(); }
