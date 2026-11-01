@@ -795,12 +795,14 @@ namespace {
             m_panelDraw = cocos2d::CCDrawNode::create();
             if (!m_panelDraw) return false;
             const float panelBottom = std::max(8.f, size.height - 420.f);
-            m_panelDraw->drawSolidRect(
-                ccp(5.f, panelBottom), ccp(320.f, size.height - 47.f),
-                cocos2d::ccc4f(0.025f, 0.055f, 0.095f, 0.88f));
-            m_panelDraw->drawRect(
-                ccp(5.f, panelBottom), ccp(320.f, size.height - 47.f),
-                cocos2d::ccc4f(0.15f, 0.72f, 1.f, 0.85f), 1.2f);
+            cocos2d::CCPoint panelCorners[] = {
+                ccp(5.f, panelBottom), ccp(320.f, panelBottom),
+                ccp(320.f, size.height - 47.f), ccp(5.f, size.height - 47.f)
+            };
+            m_panelDraw->drawPolygon(panelCorners, 4,
+                cocos2d::ccc4f(0.025f, 0.055f, 0.095f, 0.88f), 1.2f,
+                cocos2d::ccc4f(0.15f, 0.72f, 1.f, 0.85f),
+                cocos2d::BorderAlignment::Inside);
             this->addChild(m_panelDraw, 0);
             m_panelTitle = cocos2d::CCLabelBMFont::create("FRAME-GUARD  /  CONTROL", "bigFont.fnt");
             if (m_panelTitle) {
