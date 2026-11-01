@@ -795,13 +795,13 @@ namespace {
             if (!floatingSprite) floatingSprite = cocos2d::CCSprite::create("GJ_button_01.png");
             if (!floatingSprite) return false;
             floatingSprite->setOpacity(0);
-            floatingSprite->setScale(0.72f);
+            floatingSprite->setScale(0.92f);
             m_openButton = CCMenuItemSpriteExtra::create(
                 floatingSprite, this, menu_selector(FrameGuardMenu::onToggleMenu));
             if (m_openButton) {
                 auto* circle = cocos2d::CCDrawNode::create();
                 if (circle) {
-                    circle->drawCircle(ccp(0.f, 0.f), 19.f, cocos2d::ccc4f(0.15f, 0.72f, 1.f, 0.38f),
+                    circle->drawCircle(ccp(0.f, 0.f), 22.f, cocos2d::ccc4f(0.15f, 0.72f, 1.f, 0.38f),
                         1.5f, cocos2d::ccc4f(0.45f, 0.88f, 1.f, 0.68f), 48);
                     m_openButton->addChild(circle, 1);
                 }
@@ -898,33 +898,6 @@ namespace {
             return true;
         }
 
-        void registerWithTouchDispatcher() override {
-            cocos2d::CCDirector::sharedDirector()->getTouchDispatcher()->addTargetedDelegate(this, -128, true);
-        }
-        bool ccTouchBegan(cocos2d::CCTouch* touch, cocos2d::CCEvent*) override {
-            auto p = this->convertToNodeSpace(touch->getLocation());
-            auto* director = cocos2d::CCDirector::sharedDirector();
-            const auto size = director->getWinSize();
-            if (std::abs(p.x - 42.f) > 27.f || std::abs(p.y - (size.height - 34.f)) > 27.f) return false;
-            m_dragging = true;
-            m_lastTouch = touch->getLocation();
-            return true;
-        }
-        void ccTouchMoved(cocos2d::CCTouch* touch, cocos2d::CCEvent*) override {
-            if (!m_dragging) return;
-            auto* director = cocos2d::CCDirector::sharedDirector();
-            const auto size = director->getWinSize();
-            auto now = touch->getLocation();
-            auto delta = now - m_lastTouch;
-            auto pos = this->getPosition() + delta;
-            pos.x = std::clamp(pos.x, -size.width + 40.f, size.width - 40.f);
-            pos.y = std::clamp(pos.y, -size.height + 40.f, size.height - 40.f);
-            this->setPosition(pos);
-            m_lastTouch = now;
-        }
-        void ccTouchEnded(cocos2d::CCTouch*, cocos2d::CCEvent*) override { m_dragging = false; }
-        void ccTouchCancelled(cocos2d::CCTouch*, cocos2d::CCEvent*) override { m_dragging = false; }
-
         void toggleMenu() {
             m_open = !m_open;
             m_hitboxButton->setVisible(m_open);
@@ -962,7 +935,7 @@ namespace {
                     toggleText("Info text", showInfo).c_str());
             if (m_inputGuardButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_inputGuardButton->getLabel())->setString(
-                    toggleText("Path preview", Mod::get()->getSettingValue<bool>("show-safe-window")).c_str());
+                    toggleText("Input Guard", Mod::get()->getSettingValue<bool>("show-safe-window")).c_str());
             if (m_opacitySlider) m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
             if (m_marginSlider) m_marginSlider->setValue(Mod::get()->getSettingValue<int>("safe-margin-ticks"));
             if (m_horizonSlider) m_horizonSlider->setValue(Mod::get()->getSettingValue<int>("prediction-horizon-ticks"));
@@ -1065,8 +1038,6 @@ namespace {
         FrameGuardSlider* m_opacitySlider = nullptr;
         FrameGuardSlider* m_marginSlider = nullptr;
         FrameGuardSlider* m_horizonSlider = nullptr;
-        cocos2d::CCPoint m_lastTouch = CCPointZero;
-        bool m_dragging = false;
         cocos2d::CCLabelBMFont* m_fpsLabel = nullptr;
         cocos2d::CCLabelBMFont* m_guardLabel = nullptr;
         float m_guardElapsed = 0.f;
@@ -1124,7 +1095,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard v0.15.1 loaded: independent tick horizon, consistent flight-mode routing, live collision geometry and optimized trajectory checks. Inputs are never delayed or automated.");
+    log::info("Frame-Guard v0.16.0 loaded: touch-safe dropdown controls, input telemetry and non-invasive Input Guard preview.");
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
