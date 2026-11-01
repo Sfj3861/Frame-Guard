@@ -1,4 +1,4 @@
-name: Build Frame-Guard Android64
+name: Build Frame-Guard multi-platform
 
 on:
   push:
@@ -12,24 +12,58 @@ on:
       - ".github/workflows/build-frame-guard.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build-android64:
-    name: Build Android64 .geode
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: Windows
+            os: windows-latest
+            target: Win64
+          - name: macOS
+            os: macos-latest
+            target: MacOS
+          - name: iOS
+            os: macos-latest
+            target: iOS
+          - name: Android64
+            os: ubuntu-latest
+            target: Android64
+    name: Build ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Build Frame-Guard with Geode SDK
+      - name: Build Geode mod
         id: build
         uses: geode-sdk/build-geode-mod@main
         with:
           path: geode-android
           sdk: given
-          target: Android64
-
-      - name: Upload installable package
+          target: ${{ matrix.config.target }}
+          combine: true
+          build-config: Release
+      - name: Upload platform build
         uses: actions/upload-artifact@v4
         with:
-          name: Frame-Guard-Android64
+          name: Frame-Guard-${{ matrix.config.name }}
           path: ${{ steps.build.outputs.build-output }}
+          if-no-files-found: error
+
+  package:
+    name: Combine platform binaries
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Combine Geode builds
+        id: combine
+        uses: geode-sdk/build-geode-mod/combine@main
+      - name: Upload universal package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Frame-Guard-v0.16.0-MultiPlatform
+          path: ${{ steps.combine.outputs.build-output }}
           if-no-files-found: error
