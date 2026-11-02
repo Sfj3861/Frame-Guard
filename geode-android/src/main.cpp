@@ -22,6 +22,16 @@ namespace {
     class FrameGuardOverlay;
     static FrameGuardOverlay* g_activeOverlay = nullptr;
 
+    // Features that provide gameplay assistance are explicitly classified here.
+    // Telemetry/FPS are informational and do not change or predict gameplay.
+    static bool hasAssistFeaturesEnabled() {
+        auto* mod = Mod::get();
+        return mod->getSettingValue<bool>("show-hitboxes") ||
+            mod->getSettingValue<bool>("show-player-bounds") ||
+            mod->getSettingValue<bool>("show-trajectory") ||
+            mod->getSettingValue<bool>("show-safe-window");
+    }
+
     std::string toggleText(char const* name, bool value) {
         return fmt::format("{}: {}", name, value ? "ON" : "OFF");
     }
@@ -885,6 +895,13 @@ namespace {
                 m_fpsLabel->setVisible(Mod::get()->getSettingValue<bool>("show-fps"));
                 this->addChild(m_fpsLabel, 2);
             }
+            m_cheatLabel = cocos2d::CCLabelBMFont::create("CHEAT: --", "bigFont.fnt");
+            if (m_cheatLabel) {
+                m_cheatLabel->setScale(0.38f);
+                m_cheatLabel->setAnchorPoint(ccp(1.f, 0.5f));
+                m_cheatLabel->setPosition(ccp(size.width - 10.f, size.height - 42.f));
+                this->addChild(m_cheatLabel, 2);
+            }
             m_guardLabel = cocos2d::CCLabelBMFont::create("FrameGuard starting...", "bigFont.fnt");
             if (m_guardLabel) {
                 m_guardLabel->setScale(0.34f);
@@ -971,6 +988,18 @@ namespace {
                     toggleText("FrameGuard", Mod::get()->getSettingValue<bool>("frameguard-enabled")).c_str());
             if (m_guardLabel)
                 m_guardLabel->setVisible(showInfo && Mod::get()->getSettingValue<bool>("show-frameguard-hud"));
+        }
+
+        void updateCheatIndicator() {
+            if (!m_cheatLabel) return;
+            const bool visible = Mod::get()->getSettingValue<bool>("cheat-indicator");
+            m_cheatLabel->setVisible(visible);
+            if (!visible) return;
+            const bool assisted = hasAssistFeaturesEnabled();
+            m_cheatLabel->setString(assisted ? "ASSIST: ON" : "CLEAN: ON");
+            m_cheatLabel->setColor(assisted
+                ? cocos2d::ccc3(255, 65, 65)
+                : cocos2d::ccc3(70, 235, 105));
         }
 
         void updateFrameGuardHUD(float dt) {
@@ -1069,6 +1098,7 @@ namespace {
         bool m_dragging = false;
         cocos2d::CCLabelBMFont* m_fpsLabel = nullptr;
         cocos2d::CCLabelBMFont* m_guardLabel = nullptr;
+        cocos2d::CCLabelBMFont* m_cheatLabel = nullptr;
         float m_guardElapsed = 0.f;
         float m_elapsed = 0.f;
         unsigned int m_frames = 0;
@@ -1113,7 +1143,22 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
             m_fields->menu->syncLabels();
             m_fields->menu->updateFPS(dt);
             m_fields->menu->updateFrameGuardHUD(dt);
+            m_fields->menu->updateCheatIndicator();
         }
+    }
+
+    void levelComplete() {
+        // Auto Safe Mode prevents a completion from being submitted while any
+        // explicitly classified assistance overlay is active. It never alters
+        // inputs or gameplay physics. Players may opt out in mod settings.
+        if (Mod::get()->getSettingValue<bool>("auto-safe-mode") && hasAssistFeaturesEnabled()) {
+            Notification::create(
+                "Frame-Guard Auto Safe Mode: disable assistance overlays to complete this level.",
+                NotificationIcon::Warning
+            )->show();
+            return;
+        }
+        PlayLayer::levelComplete();
     }
 
     void resetLevel() {
@@ -1124,7 +1169,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard v0.15.1 loaded: independent tick horizon, consistent flight-mode routing, live collision geometry and optimized trajectory checks. Inputs are never delayed or automated.");
+    log::info("Frame-Guard v0.16.0 loaded: world-space overlay, Auto Safe Mode, optional cheat indicator, tick forecast and input telemetry. Inputs are never delayed or automated.");
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
