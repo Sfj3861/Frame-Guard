@@ -238,11 +238,15 @@ namespace {
                 label->setVisible(true);
                 const int windowHorizon = std::clamp(horizon, 1, 12);
                 std::string message;
-                if (!(player->m_isDart || player->m_isShip || player->m_isBird || player->m_isSwing)) {
-                    const int collisionTick = findHazardCollisionTick(player, windowHorizon);
-                    message = collisionTick < 0
-                        ? fmt::format("PATH CLEAR: {} TICKS (APPROX)", windowHorizon)
-                        : fmt::format("HAZARD IN {} TICKS (APPROX)", collisionTick);
+                // Input Guard deliberately refuses to label unsupported physics as
+                // safe. Cube/ball/UFO/robot/spider and portal-driven transitions need
+                // their own discrete-event models; a generic gravity estimate can
+                // otherwise produce false confidence.
+                const bool supportedContinuousMode =
+                    player->m_isDart || player->m_isShip ||
+                    player->m_isBird || player->m_isSwing;
+                if (!supportedContinuousMode) {
+                    message = "INPUT GUARD: MODE NOT VERIFIED";
                 } else {
                     const bool held = FrameGuardTelemetry::isHeld(player->m_isSecondPlayer);
                     int firstSafe = -1;
@@ -255,13 +259,14 @@ namespace {
                             break;
                         }
                     }
+                    const char* action = held ? "RELEASE" : "PRESS";
                     if (firstSafe < 0) {
-                        message = fmt::format("{} NOW: NO CLEAR WINDOW", held ? "RELEASE" : "PRESS");
-                    } else if (firstSafe == lastSafe) {
-                        message = fmt::format("{} IN {} TICKS (EST.)", held ? "RELEASE" : "PRESS", firstSafe);
+                        message = fmt::format("INPUT GUARD: NO ESTIMATED WINDOW | {} NOW", action);
+                    } else if (firstSafe == 0 && lastSafe == 0) {
+                        message = fmt::format("INPUT GUARD: {} NOW ONLY (EST.)", action);
                     } else {
-                        message = fmt::format("{} WINDOW {}-{} TICKS (EST.)",
-                            held ? "RELEASE" : "PRESS", firstSafe, lastSafe);
+                        message = fmt::format("INPUT GUARD: {} TICKS {}-{} (EST.)",
+                            action, firstSafe, lastSafe);
                     }
                 }
                 label->setString(message.c_str());
@@ -962,7 +967,7 @@ namespace {
                     toggleText("Info text", showInfo).c_str());
             if (m_inputGuardButton)
                 static_cast<cocos2d::CCLabelBMFont*>(m_inputGuardButton->getLabel())->setString(
-                    toggleText("Path preview", Mod::get()->getSettingValue<bool>("show-safe-window")).c_str());
+                    toggleText("Input Guard", Mod::get()->getSettingValue<bool>("show-safe-window")).c_str());
             if (m_opacitySlider) m_opacitySlider->setValue(Mod::get()->getSettingValue<int>("overlay-opacity"));
             if (m_marginSlider) m_marginSlider->setValue(Mod::get()->getSettingValue<int>("safe-margin-ticks"));
             if (m_horizonSlider) m_horizonSlider->setValue(Mod::get()->getSettingValue<int>("prediction-horizon-ticks"));
@@ -1124,7 +1129,7 @@ class $modify(FrameGuardPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Frame-Guard v0.15.1 loaded: independent tick horizon, consistent flight-mode routing, live collision geometry and optimized trajectory checks. Inputs are never delayed or automated.");
+    log::info("Frame-Guard v0.16.0 loaded: Input Guard advisory mode, current-plus-future tick window, conservative unsupported-mode handling. Inputs are never delayed or automated.");
 }
 
 class $modify(FrameGuardPlayerObject, PlayerObject) {
